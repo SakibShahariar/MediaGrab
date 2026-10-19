@@ -262,12 +262,22 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             self.toast_overlay.add_toast(Adw.Toast.new("Enter a valid HTTP(S) URL."))
             return
 
+        self.add_download_url(url)
+
+    def add_download_url(self, url: str) -> bool:
+        """Validate and enqueue a URL from either the UI or browser bridge."""
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            self.toast_overlay.add_toast(Adw.Toast.new("Enter a valid HTTP(S) URL."))
+            return False
+        if parsed.username is not None or parsed.password is not None:
+            self.toast_overlay.add_toast(Adw.Toast.new("URLs with embedded credentials are not accepted."))
+            return False
         try:
             task = DownloadTask(url, DOWNLOAD_DIRECTORY)
         except ValueError as exc:
             self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
-            return
-
+            return False
         row = DownloadRow(self, url, task)
         self._rows.append(row)
         self.list_box.append(row)
@@ -275,6 +285,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         self._persist_queue()
         self._enqueue_download(row)
         self.toast_overlay.add_toast(Adw.Toast.new("Added to download queue."))
+        return True
 
     def _enqueue_download(self, row: DownloadRow) -> None:
         if row in self._pending_downloads or row in self._active_downloads:
@@ -360,9 +371,10 @@ class MediaGrabApplication(Adw.Application):
     def __init__(self) -> None:
         super().__init__(
             application_id=APP_ID,
-            flags=Gio.ApplicationFlags.DEFAULT_FLAGS,
+            flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE,
         )
         self.connect("activate", self._on_activate)
+        self.connect("command-line", self._on_command_line)
 
     def _on_activate(self, app: Adw.Application) -> None:
         window = app.get_active_window()
@@ -370,11 +382,32 @@ class MediaGrabApplication(Adw.Application):
             window = MediaGrabWindow(application=app)
         window.present()
 
+    def _on_command_line(self, app: Adw.Application, command_line: Gio.ApplicationCommandLine) -> int:
+        args = command_line.get_arguments()[1:]
+        url: str | None = None
+        if args:
+            if len(args) != 2 or args[0] != "--add-url":
+                command_line.print("Usage: mediagrab [--add-url HTTP(S)_URL]\\n")
+                return 2
+            url = args[1]
+            parsed = urlparse(url)
+            if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+                command_line.print("MediaGrab accepts only valid HTTP(S) URLs.\\n")
+                return 2
+            if parsed.username is not None or parsed.password is not None:
+                command_line.print("URLs containing embedded credentials are not accepted.\\n")
+                return 2
+        self._on_activate(app)
+        window = app.get_active_window()
+        if url is not None and isinstance(window, MediaGrabWindow):
+            if not window.add_download_url(url):
+                return 2
+        return 0
+
 
 def main() -> int:
     app = MediaGrabApplication()
     return app.run(sys.argv)
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
