@@ -7,7 +7,7 @@ A native Linux download manager focused on reliable browser-to-desktop media cap
 ## Goals
 
 - A polished GTK4/libadwaita desktop experience for GNOME and other Linux desktops.
-- Browser integration for Firefox first, with Chromium-based browsers planned.
+- Cross-browser integration: Firefox and Chromium-based browsers, with Brave, Vivaldi, and other compatible browsers supported where their extension and native-messaging APIs permit.
 - Detect downloadable media and offer clear choices for available streams and qualities where technically possible.
 - Hand downloads from the browser to the desktop app through a native-messaging bridge.
 - Handle authenticated media carefully, using only browser-session information that the user is authorized to access.
@@ -46,15 +46,16 @@ The extension will detect candidate media using documented browser APIs. The nat
 
 ## Next milestones
 
-1. **Browser bridge:** Firefox WebExtension and validated native-messaging host.
-2. **Manual handoff:** send a selected link from Firefox to the desktop app before implementing automatic detection.
-3. **Media capture:** inspect browser-observed media requests and HLS/DASH manifests; expose quality choices only when verified. DASH template-based segment downloading remains future work.
-4. **Reliability and polish:** configurable destinations, richer transfer controls, diagnostics with secrets redacted, packaging, and later Chromium support.
+1. **Shared browser bridge:** define a versioned protocol and validated native-messaging host usable by multiple browsers.
+2. **Browser adapters:** implement Firefox and Chromium-family extension support, sharing detection and message handling wherever the APIs overlap.
+3. **Manual handoff:** send a selected link from any supported browser to the desktop app before implementing automatic detection.
+4. **Media capture:** inspect browser-observed media requests and HLS/DASH manifests; expose quality choices only when verified. DASH template-based segment downloading remains future work.
+5. **Reliability and polish:** configurable destinations, richer transfer controls, diagnostics with secrets redacted, packaging, and later Chromium support.
 
 ## Development principles
 
 - Implement independently using public documentation and observable behavior; do not copy proprietary IDM code or bundle proprietary extension files.
-- Prefer small, reviewable changes and automated tests.
+- Prefer coherent, reviewable feature batches with automated tests; avoid splitting a feature into unnecessary implementation/test-only commit pairs.
 - Be explicit about unsupported sites and protected content instead of promising universal capture.
 - Keep browser detection, extraction, downloading, and UI responsibilities separated.
 
