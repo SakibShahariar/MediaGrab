@@ -7,6 +7,7 @@ in a worker thread and marshal progress callbacks back to the main loop.
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -352,6 +353,9 @@ class DownloadTask:
         except urllib.error.URLError as exc:
             self._set_state("failed")
             raise DownloadError(f"Network error: {exc.reason}") from exc
+        except http.client.HTTPException as exc:
+            self._set_state("failed")
+            raise DownloadError(f"HTTP protocol error: {exc}") from exc
         except DownloadError:
             if self.state != "cancelled":
                 self._set_state("failed")

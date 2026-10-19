@@ -186,7 +186,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
         footer = Gtk.Label(
             label=f"Up to {MAX_CONCURRENT_DOWNLOADS} simultaneous downloads · "
-            "Browser capture not yet implemented"
+            "Manual browser handoff available · automatic capture is in development"
         )
         footer.add_css_class("dim-label")
         footer.add_css_class("caption")

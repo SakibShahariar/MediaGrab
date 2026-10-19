@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -576,3 +577,17 @@ def test_rejects_changed_total_between_range_segments(tmp_path: Path) -> None:
         httpd.shutdown()
         thread.join(timeout=2)
         httpd.server_close()
+
+
+
+def test_http_protocol_errors_mark_task_failed(tmp_path: Path, monkeypatch) -> None:
+    def broken_response(*_args, **_kwargs):
+        raise http.client.IncompleteRead(b"partial", 10)
+
+    monkeypatch.setattr("mediagrab.downloader.urllib.request.urlopen", broken_response)
+    task = DownloadTask("https://example.test/file.bin", tmp_path)
+
+    with pytest.raises(DownloadError, match="HTTP protocol error"):
+        task.run()
+
+    assert task.state == "failed"
