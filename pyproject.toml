@@ -16,7 +16,7 @@ dependencies = []
 test = ["pytest>=8"]
 
 [project.scripts]
-mediagrab = "mediagrab.main:main"
+mediagrab = "mediagrab.main:main"\nmediagrab-native-host = "mediagrab.native_host:main"
 
 [tool.setuptools.packages.find]
 where = ["app"]
