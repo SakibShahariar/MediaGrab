@@ -2,14 +2,14 @@
 
 A native Linux download manager focused on reliable browser-to-desktop media capture, inspired by the workflow of Internet Download Manager (IDM).
 
-> **Status:** Early implementation. The GTK4/libadwaita queue and HTTP(S) download core are implemented with automated tests. Browser integration and media capture remain unimplemented.
+> **Status:** Early implementation. The GTK4/libadwaita queue, HTTP(S) download core, media-manifest inspection helpers, and a manual Firefox/Chromium browser-to-desktop handoff prototype are implemented. Automatic media detection and stream downloading are not implemented yet.
 
 ## Goals
 
 - A polished GTK4/libadwaita desktop experience for GNOME and other Linux desktops.
 - Cross-browser integration: Firefox and Chromium-based browsers, with Brave, Vivaldi, and other compatible browsers supported where their extension and native-messaging APIs permit.
 - Detect downloadable media and offer clear choices for available streams and qualities where technically possible.
-- Hand downloads from the browser to the desktop app through a native-messaging bridge.
+- Hand downloads from the browser to the desktop app through a versioned native-messaging bridge (manual context-menu handoff prototype now exists).
 - Handle authenticated media carefully, using only browser-session information that the user is authorized to access.
 - Keep the application modular, testable, and mindful of resource use.
 
@@ -71,7 +71,7 @@ The extension will detect candidate media using documented browser APIs. The nat
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) once the initial development guidelines are added. Until then, issues and focused pull requests are welcome.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines. Browser handoff setup and current limitations are documented in [docs/development.md](docs/development.md).
 
 ## License
 
