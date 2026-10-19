@@ -10,7 +10,7 @@ The extension should not try to implement the full download engine. Its role is 
 
 ### 2. Native messaging host
 
-A small local bridge registered with the browser. It accepts structured messages, validates their schema and size, and forwards permitted requests to MediaGrab.
+A small local bridge registered with the browser. It accepts length-prefixed JSON messages, validates protocol version, schema, URL scheme, embedded credentials, and payload size, then invokes the registered `mediagrab --add-url URL` application command without a shell. The GTK application uses `GApplication` command-line forwarding to enqueue the URL in an existing window or launch a new one.
 
 Security requirements:
 - Treat all browser messages as untrusted input.
@@ -54,3 +54,10 @@ Start with the download core and a small desktop queue. Define the shared native
 - How queue state should be persisted across restarts.
 - How to represent HLS/DASH variants and associated audio tracks.
 - How to package and register native messaging for Firefox and each Chromium-family browser on each target distribution.
+
+
+## Current browser handoff boundary
+
+The first implementation deliberately supports manual link/page handoff rather than broad network interception. Firefox and Chromium-family extensions send the same versioned `add-url` message. The native host is GTK-free and can be tested with framed input/output fixtures. It rejects malformed frames, unknown message types, non-HTTP(S) URLs, and URLs with embedded credentials. Signed query parameters are retained because they may be required for legitimate downloads, so they must not be printed in diagnostics.
+
+The current host registration files are examples, not a system installer. The end-to-end path still requires browser-specific manifest placement, a correct absolute executable path, and the Chromium extension ID allowlist. Automatic media request observation and stream extraction are separate milestones.
