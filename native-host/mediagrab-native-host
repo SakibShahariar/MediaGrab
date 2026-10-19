@@ -1,0 +1,5 @@
+#!/usr/bin/env python3
+"""Entry point installed by the packager for MediaGrab's native host."""
+from mediagrab.native_host import main
+
+raise SystemExit(main())
