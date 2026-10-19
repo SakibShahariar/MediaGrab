@@ -47,5 +47,6 @@ Tests use a local HTTP server and do not need an external download URL or intern
 - Existing completed filenames are not overwritten.
 - Interrupted downloads keep a `.part` file. A new task can resume it if the server correctly supports HTTP byte ranges. If the server ignores the range request, MediaGrab restarts the partial from byte zero.
 - Cancellation is cooperative and may wait for the current network read to return or time out.
-- Pause/resume controls, retries from the UI, queue persistence, and concurrency limits are not implemented.
+- Failed or cancelled rows expose a retry/resume action; the download core attempts to continue from an existing `.part` file when the server supports byte ranges.
+- Queue persistence and concurrency limits are not implemented.
 - Browser extension and native messaging integration are not implemented.
