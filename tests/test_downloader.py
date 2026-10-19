@@ -153,3 +153,34 @@ def test_server_ignoring_range_restarts_without_duplicate_bytes(tmp_path: Path) 
         httpd.shutdown()
         thread.join(timeout=2)
         httpd.server_close()
+
+def test_rejects_inconsistent_content_range_on_resume(tmp_path: Path) -> None:
+    class BadRangeHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            self.send_response(206)
+            self.send_header("Content-Range", f"bytes 0-{len(PAYLOAD) - 2}/{len(PAYLOAD)}")
+            self.send_header("Content-Length", str(len(PAYLOAD) - 1))
+            self.end_headers()
+            self.wfile.write(PAYLOAD[1:])
+
+        def log_message(self, _format: str, *_args: object) -> None:
+            pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), BadRangeHandler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        partial = tmp_path / "payload.bin.part"
+        partial.write_bytes(PAYLOAD[:10])
+        task = DownloadTask(f"http://127.0.0.1:{httpd.server_port}/payload.bin", tmp_path)
+
+        with pytest.raises(DownloadError, match="invalid Content-Range"):
+            task.run()
+
+        assert partial.read_bytes() == PAYLOAD[:10]
+        assert not (tmp_path / "payload.bin").exists()
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+        httpd.server_close()
+
