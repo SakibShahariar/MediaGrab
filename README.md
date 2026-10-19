@@ -46,11 +46,10 @@ The extension will detect candidate media using documented browser APIs. The nat
 
 ## Next milestones
 
-1. **Shared browser bridge:** define a versioned protocol and validated native-messaging host usable by multiple browsers.
-2. **Browser adapters:** implement Firefox and Chromium-family extension support, sharing detection and message handling wherever the APIs overlap.
-3. **Manual handoff:** send a selected link from any supported browser to the desktop app before implementing automatic detection.
-4. **Media capture:** inspect browser-observed media requests and HLS/DASH manifests; expose quality choices only when verified. DASH template-based segment downloading remains future work.
-5. **Reliability and polish:** configurable destinations, richer transfer controls, diagnostics with secrets redacted, packaging, and later Chromium support.
+1. **End-to-end browser handoff:** package and register the native host reliably; test Firefox and Chromium-family context menus against a running desktop session.
+2. **Automatic detection:** observe documented browser-visible media signals and pass candidate URLs to the capture engine without collecting secrets unnecessarily.
+3. **Media capture:** inspect browser-observed media requests and HLS/DASH manifests; expose quality choices only when verified. DASH template-based segment downloading remains future work.
+4. **Reliability and polish:** configurable destinations, richer transfer controls, diagnostics with secrets redacted, packaging, and broader browser validation.
 
 ## Development principles
 
