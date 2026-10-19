@@ -1,0 +1,15 @@
+{
+  "manifest_version": 2,
+  "name": "MediaGrab — Send to desktop",
+  "version": "0.1.0",
+  "description": "Send a selected HTTP(S) link or the current page to MediaGrab.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "mediagrab@github.com",
+      "strict_min_version": "115.0"
+    }
+  },
+  "permissions": ["contextMenus", "nativeMessaging"],
+  "background": { "scripts": ["../shared/background.js"] },
+  "applications": { "gecko": { "id": "mediagrab@github.com" } }
+}
