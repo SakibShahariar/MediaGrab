@@ -1,0 +1,7 @@
+{
+  "name": "io.github.SakibShahariar.MediaGrab",
+  "description": "MediaGrab browser-to-desktop handoff",
+  "path": "/usr/bin/mediagrab-native-host",
+  "type": "stdio",
+  "allowed_extensions": ["mediagrab@github.com"]
+}
