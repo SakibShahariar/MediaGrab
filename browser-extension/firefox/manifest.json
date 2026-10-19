@@ -10,6 +10,6 @@
     }
   },
   "permissions": ["contextMenus", "nativeMessaging"],
-  "background": { "scripts": ["../shared/background.js"] },
+  "background": { "scripts": ["background.js"] },
   "applications": { "gecko": { "id": "mediagrab@github.com" } }
 }
