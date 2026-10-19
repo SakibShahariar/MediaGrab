@@ -14,12 +14,22 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from mediagrab.downloader import DownloadError, DownloadProgress, DownloadTask
+from mediagrab.capture import MediaKind, classify_media
+from mediagrab.media_stream import MediaStreamTask
 from mediagrab.queue_store import load_queue, save_queue
 
 
 APP_ID = "io.github.SakibShahariar.MediaGrab"
 DOWNLOAD_DIRECTORY = Path.home() / "Downloads"
 MAX_CONCURRENT_DOWNLOADS = 3
+
+
+def create_download_task(url: str, destination: Path):
+    """Choose the direct HTTP downloader or the FFmpeg stream adapter."""
+    kind = classify_media(url)
+    if kind in {MediaKind.HLS, MediaKind.DASH}:
+        return MediaStreamTask(url, destination)
+    return DownloadTask(url, destination)
 
 
 def format_bytes(value: float) -> str:
@@ -186,7 +196,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
         footer = Gtk.Label(
             label=f"Up to {MAX_CONCURRENT_DOWNLOADS} simultaneous downloads · "
-            "Manual browser handoff available · automatic capture is in development"
+            "HLS/DASH streams use FFmpeg · automatic capture is in development"
         )
         footer.add_css_class("dim-label")
         footer.add_css_class("caption")
@@ -198,7 +208,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         for entry in load_queue():
             url = entry["url"]
             try:
-                task = DownloadTask(url, DOWNLOAD_DIRECTORY)
+                task = create_download_task(url, DOWNLOAD_DIRECTORY)
             except ValueError:
                 continue
             row = DownloadRow(self, url, task)
@@ -230,13 +240,13 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         page = Adw.StatusPage()
         page.set_icon_name("folder-download-symbolic")
         page.set_title("Nothing queued")
-        page.set_description("Add a direct HTTP(S) file URL to start a download.")
+        page.set_description("Add a direct file URL or an HLS/DASH manifest URL to start a download.")
         return page
 
     def _on_add_clicked(self, _button: Gtk.Button) -> None:
         dialog = Adw.AlertDialog(
             heading="Add a download",
-            body=f"Enter a direct HTTP(S) URL. The file will be saved in {DOWNLOAD_DIRECTORY}.",
+            body=f"Enter a direct file URL or an HLS/DASH manifest URL. The file will be saved in {DOWNLOAD_DIRECTORY}. HLS/DASH downloads require FFmpeg.",
         )
         entry = Gtk.Entry()
         entry.set_placeholder_text("https://example.com/file.zip")

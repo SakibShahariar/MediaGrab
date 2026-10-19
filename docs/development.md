@@ -5,7 +5,7 @@ These instructions target Fedora with GNOME. MediaGrab has a GTK4/libadwaita dow
 ## Install system dependencies
 
 ```fish
-sudo dnf install python3 python3-gobject gtk4 libadwaita
+sudo dnf install python3 python3-gobject gtk4 libadwaita ffmpeg
 ```
 
 ## Set up a development environment
@@ -51,7 +51,7 @@ Tests use a local HTTP server and do not need an external download URL or intern
 - Existing completed filenames are not overwritten.
 - Interrupted downloads can resume if the server supports HTTP byte ranges. If the server ignores the range request, MediaGrab restarts the partial from byte zero.
 - Cancellation is cooperative and may wait for the current network read to return or time out.
-- Browser handoff is a manual prototype; automatic media detection and end-to-end desktop/browser verification remain outstanding.
+- HLS/DASH downloads require FFmpeg (`sudo dnf install ffmpeg`) and remux to MKV without re-encoding. Some streams may fail due to expired URLs, missing browser authentication, unsupported codecs, or DRM; the app does not bypass DRM.\n- Browser handoff is a manual prototype; automatic media detection and end-to-end desktop/browser verification remain outstanding.
 
 
 ## Browser handoff prototype
