@@ -243,7 +243,10 @@ class DownloadTask:
                 )
 
             os.replace(partial, target)
-            metadata.unlink(missing_ok=True)
+            try:
+                metadata.unlink(missing_ok=True)
+            except OSError:
+                pass  # A stale sidecar must not turn a completed download into a failure.
             self._set_state("completed")
             if on_progress is not None:
                 elapsed = max(time.monotonic() - started, 0.001)
@@ -271,7 +274,10 @@ class DownloadTask:
                             self._set_state("cancelled")
                             raise DownloadError("Download cancelled")
                         os.replace(partial, target)
-                        metadata.unlink(missing_ok=True)
+                        try:
+                            metadata.unlink(missing_ok=True)
+                        except OSError:
+                            pass
                         self._set_state("completed")
                         if on_progress is not None:
                             size = target.stat().st_size
