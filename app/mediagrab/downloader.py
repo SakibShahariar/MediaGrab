@@ -218,13 +218,10 @@ class DownloadTask:
 
                     content_length = response.headers.get("Content-Length")
                     response_length: int | None = None
-                    if content_length:
-                        try:
-                            response_length = int(content_length)
-                        except ValueError:
-                            response_length = None
-                        if response_length is not None and response_length < 0:
-                            response_length = None
+                    if content_length is not None:
+                        if re.fullmatch(r"\d+", content_length) is None:
+                            raise DownloadError("Server returned an invalid Content-Length")
+                        response_length = int(content_length)
 
                     if append:
                         segment_length = range_end - range_start + 1
