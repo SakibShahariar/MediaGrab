@@ -9,7 +9,24 @@
       "strict_min_version": "115.0"
     }
   },
-  "permissions": ["contextMenus", "nativeMessaging"],
-  "background": { "scripts": ["background.js"] },
-  "applications": { "gecko": { "id": "mediagrab@github.com" } }
+  "permissions": [
+    "contextMenus",
+    "nativeMessaging",
+    "activeTab",
+    "scripting"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "applications": {
+    "gecko": {
+      "id": "mediagrab@github.com"
+    }
+  },
+  "browser_action": {
+    "default_title": "Scan page media with MediaGrab",
+    "default_popup": "popup.html"
+  }
 }
