@@ -126,6 +126,10 @@ class DownloadTask:
             except (OSError, ValueError, TypeError):
                 # Unreadable metadata cannot safely validate the partial.
                 offset = 0
+        # Never append bytes from an unvalidated partial. Older partials without
+        # sidecar metadata are restarted from byte zero.
+        if offset and validator is None:
+            offset = 0
 
         if self._cancel.is_set():
             self._set_state("cancelled")
