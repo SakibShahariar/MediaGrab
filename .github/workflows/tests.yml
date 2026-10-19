@@ -35,10 +35,11 @@ jobs:
           node --check browser-extension/firefox/background.js
           node --check browser-extension/chromium/background.js
 
-      - name: Validate browser manifests
+      - name: Validate browser manifests and Python scripts
         run: |
           python -c "import json, pathlib; [json.loads(p.read_text()) for p in pathlib.Path('.').glob('browser-extension/*/manifest.json')]"
           python -c "import json, pathlib; [json.loads(p.read_text()) for p in pathlib.Path('native-host').glob('*.json.example')]"
+          python -m compileall -q app scripts tests
 
       - name: Run tests
         run: python -m pytest -v
