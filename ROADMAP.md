@@ -27,13 +27,13 @@ MediaGrab has an initial GTK4/libadwaita queue and HTTP(S) download core. Milest
 
 ## Phase 4 — Cross-browser integration
 
-- [ ] Define a versioned, browser-neutral message protocol and validate every message at the native boundary.
-- [ ] Add the shared native-messaging host and per-browser registration templates.
-- [ ] Create a Firefox WebExtension using documented APIs.
-- [ ] Create a Chrome/Chromium WebExtension using documented APIs.
+- [x] Define a versioned, browser-neutral message protocol and validate every message at the native boundary.
+- [x] Add the native-messaging host, installable console entry point, and per-browser registration templates.
+- [x] Create a Firefox WebExtension with manual link/page context-menu handoff.
+- [x] Create a Chromium Manifest V3 extension with manual link/page context-menu handoff.
 - [ ] Verify compatibility with Brave, Vivaldi, and other Chromium browsers where host registration permits it.
-- [ ] Add a manual “send download to MediaGrab” flow in each supported browser before automatic detection.
-- [ ] Document installation and troubleshooting for each supported browser on Fedora.
+- [x] Add a manual “send link/page to MediaGrab” flow in Firefox and Chromium-family extensions (end-to-end browser testing still pending).
+- [ ] Add a tested Fedora installer and browser-specific troubleshooting; development setup is documented, but host registration remains manual.
 
 ## Phase 5 — Media capture
 
