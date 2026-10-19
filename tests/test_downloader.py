@@ -19,11 +19,28 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/missing":
             self.send_error(404, "Not found")
             return
-        self.send_response(200)
-        self.send_header("Content-Length", str(len(PAYLOAD)))
+        range_header = self.headers.get("Range")
+        body = PAYLOAD
+        if range_header and range_header.startswith("bytes="):
+            try:
+                offset = int(range_header.removeprefix("bytes=").split("-", 1)[0])
+            except ValueError:
+                self.send_error(400, "Invalid Range")
+                return
+            if offset >= len(PAYLOAD):
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{len(PAYLOAD)}")
+                self.end_headers()
+                return
+            body = PAYLOAD[offset:]
+            self.send_response(206)
+            self.send_header("Content-Range", f"bytes {offset}-{len(PAYLOAD) - 1}/{len(PAYLOAD)}")
+        else:
+            self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         try:
-            self.wfile.write(PAYLOAD)
+            self.wfile.write(body)
         except BrokenPipeError:
             pass
 
@@ -96,3 +113,43 @@ def test_cancel_before_start_does_not_create_destination(tmp_path: Path) -> None
 
     assert task.state == "cancelled"
     assert not destination.exists()
+
+
+
+def test_resumes_existing_partial_file(tmp_path: Path, server: str) -> None:
+    partial = tmp_path / "payload.bin.part"
+    offset = len(PAYLOAD) // 3
+    partial.write_bytes(PAYLOAD[:offset])
+
+    task = DownloadTask(f"{server}/payload.bin", tmp_path, chunk_size=2048)
+    result = task.run()
+
+    assert result.read_bytes() == PAYLOAD
+    assert task.state == "completed"
+    assert not partial.exists()
+
+
+def test_server_ignoring_range_restarts_without_duplicate_bytes(tmp_path: Path) -> None:
+    class IgnoreRangeHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(PAYLOAD)))
+            self.end_headers()
+            self.wfile.write(PAYLOAD)
+
+        def log_message(self, _format: str, *_args: object) -> None:
+            pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), IgnoreRangeHandler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        partial = tmp_path / "payload.bin.part"
+        partial.write_bytes(b"old partial data")
+        task = DownloadTask(f"http://127.0.0.1:{httpd.server_port}/payload.bin", tmp_path)
+        result = task.run()
+        assert result.read_bytes() == PAYLOAD
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+        httpd.server_close()
