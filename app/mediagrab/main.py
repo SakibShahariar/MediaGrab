@@ -40,12 +40,14 @@ def format_size(value: int) -> str:
 
 
 class DownloadRow(Adw.ActionRow):
-    """One queue item, including live transfer progress and cancellation."""
+    """One queue item, including progress, cancellation, and retry controls."""
 
-    def __init__(self, url: str, task: DownloadTask) -> None:
+    def __init__(self, window: "MediaGrabWindow", url: str, task: DownloadTask) -> None:
         parsed = urlparse(url)
         title = parsed.path.rsplit("/", 1)[-1] or parsed.netloc or url
         super().__init__(title=title, subtitle=url)
+        self.window = window
+        self.url = url
         self.task = task
         self.set_activatable(False)
         self.add_prefix(Gtk.Image.new_from_icon_name("folder-download-symbolic"))
@@ -60,11 +62,31 @@ class DownloadRow(Adw.ActionRow):
         self.progress.set_size_request(120, -1)
         self.add_suffix(self.progress)
 
+        self.retry_button = Gtk.Button.new_from_icon_name("view-refresh-symbolic")
+        self.retry_button.set_tooltip_text("Retry or resume download")
+        self.retry_button.add_css_class("flat")
+        self.retry_button.set_visible(False)
+        self.retry_button.connect("clicked", self._on_retry)
+        self.add_suffix(self.retry_button)
+
         self.cancel_button = Gtk.Button.new_from_icon_name("process-stop-symbolic")
         self.cancel_button.set_tooltip_text("Cancel download")
         self.cancel_button.add_css_class("flat")
         self.cancel_button.connect("clicked", self._on_cancel)
         self.add_suffix(self.cancel_button)
+
+    def _on_retry(self, _button: Gtk.Button) -> None:
+        self.window.retry_download(self)
+
+    def prepare_retry(self, task: DownloadTask) -> None:
+        self.task = task
+        self.status_label.set_text("Queued")
+        self.progress.set_fraction(0)
+        self.progress.set_text(None)
+        self.cancel_button.set_sensitive(True)
+        self.cancel_button.set_visible(True)
+        self.retry_button.set_visible(False)
+        self.set_subtitle(self._source_url)
 
     def _on_cancel(self, _button: Gtk.Button) -> None:
         self.task.cancel()
@@ -97,6 +119,7 @@ class DownloadRow(Adw.ActionRow):
         self.status_label.set_text(state)
         self.cancel_button.set_sensitive(False)
         self.cancel_button.set_visible(False)
+        self.retry_button.set_visible(state in {"Failed", "Cancelled"})
         if state == "Failed" and message:
             self.set_subtitle(f"{self._source_url} · {message}")
         elif state == "Cancelled":
@@ -212,7 +235,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
             return
 
-        row = DownloadRow(url, task)
+        row = DownloadRow(self, url, task)
         row.set_source_url(url)
         self._rows.append(row)
         self.list_box.append(row)
@@ -221,12 +244,25 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         )
         self.toast_overlay.add_toast(Adw.Toast.new("Download started."))
 
+        self._start_download(task, row)
+
+    def _start_download(self, task: DownloadTask, row: DownloadRow) -> None:
         threading.Thread(
             target=self._run_download,
             args=(task, row),
             daemon=True,
             name="mediagrab-download",
         ).start()
+
+    def retry_download(self, row: DownloadRow) -> None:
+        try:
+            task = DownloadTask(row.url, DOWNLOAD_DIRECTORY)
+        except ValueError as exc:
+            self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
+            return
+        row.prepare_retry(task)
+        self.toast_overlay.add_toast(Adw.Toast.new("Retrying download…"))
+        self._start_download(task, row)
 
     def _run_download(self, task: DownloadTask, row: DownloadRow) -> None:
         try:
