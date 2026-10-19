@@ -35,8 +35,10 @@ MediaGrab has an initial GTK4/libadwaita queue and HTTP(S) download core. Milest
 
 ## Phase 5 — Media capture
 
+- [x] Add site-independent URL/MIME classification for direct media, HLS, and DASH candidates.
+- [x] Parse HLS master playlists into variant URLs, bandwidth, resolution, and codec metadata.
 - [ ] Detect candidate media URLs from supported browser signals.
-- [ ] Distinguish direct files from HLS/DASH manifests where possible.
+- [ ] Inspect DASH manifest representations and validate HLS parsing against real-world playlist samples.
 - [ ] Inspect available variants and expose quality choices only when known.
 - [ ] Handle relevant request metadata and cookies without logging secrets.
 - [ ] Add site-independent tests and clearly document unsupported cases.
