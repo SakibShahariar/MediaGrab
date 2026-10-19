@@ -184,3 +184,61 @@ def test_rejects_inconsistent_content_range_on_resume(tmp_path: Path) -> None:
         thread.join(timeout=2)
         httpd.server_close()
 
+def test_finalizes_partial_when_server_reports_range_already_complete(tmp_path: Path) -> None:
+    class CompleteRangeHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            self.send_response(416)
+            self.send_header("Content-Range", f"bytes */{len(PAYLOAD)}")
+            self.end_headers()
+
+        def log_message(self, _format: str, *_args: object) -> None:
+            pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), CompleteRangeHandler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        partial = tmp_path / "payload.bin.part"
+        partial.write_bytes(PAYLOAD)
+        task = DownloadTask(f"http://127.0.0.1:{httpd.server_port}/payload.bin", tmp_path)
+
+        result = task.run()
+
+        assert result.read_bytes() == PAYLOAD
+        assert task.state == "completed"
+        assert not partial.exists()
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+        httpd.server_close()
+
+
+def test_does_not_finalize_partial_when_416_total_does_not_match(tmp_path: Path) -> None:
+    class IncompleteRangeHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            self.send_response(416)
+            self.send_header("Content-Range", f"bytes */{len(PAYLOAD)}")
+            self.end_headers()
+
+        def log_message(self, _format: str, *_args: object) -> None:
+            pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), IncompleteRangeHandler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        partial = tmp_path / "payload.bin.part"
+        partial.write_bytes(PAYLOAD[:-1])
+        task = DownloadTask(f"http://127.0.0.1:{httpd.server_port}/payload.bin", tmp_path)
+
+        with pytest.raises(DownloadError, match="HTTP error 416"):
+            task.run()
+
+        assert partial.read_bytes() == PAYLOAD[:-1]
+        assert not (tmp_path / "payload.bin").exists()
+        assert task.state == "failed"
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+        httpd.server_close()
+
