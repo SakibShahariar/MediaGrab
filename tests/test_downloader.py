@@ -453,3 +453,35 @@ def test_legacy_partial_without_validator_restarts_from_zero(tmp_path: Path) -> 
         httpd.shutdown()
         thread.join(timeout=2)
         httpd.server_close()
+
+
+def test_rejects_partial_response_without_requested_range(tmp_path: Path) -> None:
+    class UnsolicitedPartialHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            body = PAYLOAD[:128]
+            self.send_response(206)
+            self.send_header("Content-Range", f"bytes 0-{len(body) - 1}/{len(PAYLOAD)}")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, _format: str, *_args: object) -> None:
+            pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), UnsolicitedPartialHandler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        task = DownloadTask(
+            f"http://127.0.0.1:{httpd.server_port}/payload.bin", tmp_path
+        )
+
+        with pytest.raises(DownloadError, match="HTTP 206 without a requested byte range"):
+            task.run()
+
+        assert not (tmp_path / "payload.bin").exists()
+        assert task.state == "failed"
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+        httpd.server_close()
