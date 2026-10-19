@@ -21,6 +21,20 @@ class MediaKind(str, Enum):
 
 
 @dataclass(frozen=True)
+class HLSRendition:
+    """An alternate HLS audio or subtitle track."""
+
+    kind: str
+    group_id: str | None
+    name: str | None
+    language: str | None
+    url: str | None
+    is_default: bool
+    autoselect: bool
+    forced: bool
+
+
+@dataclass(frozen=True)
 class DASHRepresentation:
     """DASH representation metadata; url is set only for an explicit BaseURL."""
 
@@ -156,6 +170,40 @@ def _parse_attribute_list(value: str) -> dict[str, str]:
             raw = raw[1:-1]
         attributes[match.group(1)] = raw
     return attributes
+
+
+
+def parse_hls_renditions(base_url: str, playlist: str) -> list[HLSRendition]:
+    """Parse alternate AUDIO and SUBTITLES tracks from an HLS master playlist."""
+    parsed = urlparse(base_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("base_url must be a valid HTTP(S) URL")
+    lines = [line.strip() for line in playlist.lstrip("\\ufeff").splitlines()]
+    if not lines or lines[0] != "#EXTM3U":
+        raise ValueError("Not a valid HLS playlist")
+
+    renditions: list[HLSRendition] = []
+    for line in lines:
+        if not line.startswith("#EXT-X-MEDIA:"):
+            continue
+        attrs = _parse_attribute_list(line.partition(":")[2])
+        kind = attrs.get("TYPE", "").upper()
+        if kind not in {"AUDIO", "SUBTITLES"}:
+            continue
+        raw_url = attrs.get("URI")
+        renditions.append(
+            HLSRendition(
+                kind=kind.lower(),
+                group_id=attrs.get("GROUP-ID"),
+                name=attrs.get("NAME"),
+                language=attrs.get("LANGUAGE") or attrs.get("ASSOC-LANGUAGE"),
+                url=urljoin(base_url, raw_url) if raw_url else None,
+                is_default=attrs.get("DEFAULT", "NO").upper() == "YES",
+                autoselect=attrs.get("AUTOSELECT", "NO").upper() == "YES",
+                forced=attrs.get("FORCED", "NO").upper() == "YES",
+            )
+        )
+    return renditions
 
 
 def parse_hls_master_playlist(base_url: str, playlist: str) -> list[HLSVariant]:
