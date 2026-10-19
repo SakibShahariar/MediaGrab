@@ -179,9 +179,18 @@ def test_rejects_inconsistent_content_range_on_resume(tmp_path: Path) -> None:
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     try:
+        import hashlib
+        import json
+
         partial = tmp_path / "payload.bin.part"
         partial.write_bytes(PAYLOAD[:10])
-        task = DownloadTask(f"http://127.0.0.1:{httpd.server_port}/payload.bin", tmp_path)
+        url = f"http://127.0.0.1:{httpd.server_port}/payload.bin"
+        partial.with_name(f"{partial.name}.json").write_text(json.dumps({
+            "url_sha256": hashlib.sha256(url.encode()).hexdigest(),
+            "etag": '"payload-v1"',
+            "last_modified": None,
+        }), encoding="utf-8")
+        task = DownloadTask(url, tmp_path)
 
         with pytest.raises(DownloadError, match="Content-Range for resume"):
             task.run()
@@ -207,9 +216,18 @@ def test_finalizes_partial_when_server_reports_range_already_complete(tmp_path: 
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     try:
+        import hashlib
+        import json
+
         partial = tmp_path / "payload.bin.part"
         partial.write_bytes(PAYLOAD)
-        task = DownloadTask(f"http://127.0.0.1:{httpd.server_port}/payload.bin", tmp_path)
+        url = f"http://127.0.0.1:{httpd.server_port}/payload.bin"
+        partial.with_name(f"{partial.name}.json").write_text(json.dumps({
+            "url_sha256": hashlib.sha256(url.encode()).hexdigest(),
+            "etag": '"payload-v1"',
+            "last_modified": None,
+        }), encoding="utf-8")
+        task = DownloadTask(url, tmp_path)
 
         result = task.run()
 
