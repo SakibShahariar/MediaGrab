@@ -11,7 +11,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from mediagrab.downloader import DownloadError, DownloadProgress, DownloadTask
 
@@ -147,7 +147,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         description = Gtk.Label(label=f"Files are saved to {DOWNLOAD_DIRECTORY}")
         description.add_css_class("dim-label")
         description.set_xalign(0)
-        description.set_ellipsize(3)
+        description.set_ellipsize(Pango.EllipsizeMode.END)
         intro.append(description)
 
         self.count_label = Gtk.Label(label="0 items")
@@ -237,6 +237,13 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         except DownloadError as exc:
             state = "Cancelled" if task.state == "cancelled" else "Failed"
             GLib.idle_add(self._download_finished, row, state, str(exc))
+        except Exception as exc:  # Keep an unexpected worker error from silently losing the queue row.
+            GLib.idle_add(
+                self._download_finished,
+                row,
+                "Failed",
+                f"Unexpected error ({type(exc).__name__}): {exc}",
+            )
 
     def _download_finished(self, row: DownloadRow, state: str, detail: str) -> bool:
         row.finish(state, detail if state == "Failed" else None)
