@@ -84,5 +84,5 @@ def test_handoff_uses_argument_vector_and_does_not_leak_url(monkeypatch) -> None
     url = "https://example.test/file.mp4?signature=secret"
     assert handle_message({"version": 1, "type": "add-url", "url": url}) == {"version": 1, "ok": True}
     assert seen["args"] == ["mediagrab", "--add-url", url]
-    assert seen["kwargs"]["shell"] is not True
+    assert "shell" not in seen["kwargs"]
     assert seen["kwargs"]["stdout"] is not None
