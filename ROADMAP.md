@@ -14,6 +14,7 @@ MediaGrab has an initial GTK4/libadwaita queue and HTTP(S) download core. Milest
 - [x] Build the initial GTK4/libadwaita application window.
 - [x] Implement queue rows and queued, active, completed, failed, cancelled, and interrupted states.
 - [ ] Add a paused queue state and pause/resume controls.
+- [x] Add a configurable download destination and persist the selection.
 - [ ] Verify responsiveness with a large queue.
 
 ## Phase 3 — Download core

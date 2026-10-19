@@ -16,10 +16,10 @@ from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 from mediagrab.downloader import DownloadError, DownloadProgress, DownloadTask
 from mediagrab.task_factory import create_download_task
 from mediagrab.queue_store import load_queue, save_queue
+from mediagrab.settings_store import load_settings, save_settings
 
 
 APP_ID = "io.github.SakibShahariar.MediaGrab"
-DOWNLOAD_DIRECTORY = Path.home() / "Downloads"
 MAX_CONCURRENT_DOWNLOADS = 3
 
 
@@ -130,6 +130,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         self._rows: list[DownloadRow] = []
         self._pending_downloads: list[DownloadRow] = []
         self._active_downloads: set[DownloadRow] = set()
+        self.download_directory = Path(load_settings()["download_directory"])
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.set_content(root)
@@ -137,6 +138,12 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         header = Adw.HeaderBar()
         root.append(header)
         header.set_title_widget(Adw.WindowTitle(title="MediaGrab", subtitle="Downloads"))
+
+        destination_button = Gtk.Button.new_from_icon_name("folder-open-symbolic")
+        destination_button.set_tooltip_text("Choose download folder")
+        destination_button.add_css_class("flat")
+        destination_button.connect("clicked", self._on_choose_destination)
+        header.pack_end(destination_button)
 
         add_button = Gtk.Button.new_from_icon_name("list-add-symbolic")
         add_button.set_tooltip_text("Add a download URL")
@@ -165,11 +172,11 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         page_title.set_xalign(0)
         intro.append(page_title)
 
-        description = Gtk.Label(label=f"Files are saved to {DOWNLOAD_DIRECTORY}")
-        description.add_css_class("dim-label")
-        description.set_xalign(0)
-        description.set_ellipsize(Pango.EllipsizeMode.END)
-        intro.append(description)
+        self.destination_label = Gtk.Label(label=f"Files are saved to {self.download_directory}")
+        self.destination_label.add_css_class("dim-label")
+        self.destination_label.set_xalign(0)
+        self.destination_label.set_ellipsize(Pango.EllipsizeMode.END)
+        intro.append(self.destination_label)
 
         self.count_label = Gtk.Label(label="0 items")
         self.count_label.add_css_class("dim-label")
@@ -195,11 +202,44 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         content.append(footer)
         self._restore_queue()
 
+    def _on_choose_destination(self, _button: Gtk.Button) -> None:
+        dialog = Gtk.FileChooserNative.new(
+            "Choose download folder", self, Gtk.FileChooserAction.SELECT_FOLDER,
+            "Select", "Cancel",
+        )
+        try:
+            dialog.set_current_folder(Gio.File.new_for_path(str(self.download_directory)))
+        except (GLib.Error, TypeError):
+            pass
+        dialog.connect("response", self._on_destination_response)
+        dialog.show()
+
+    def _on_destination_response(self, dialog: Gtk.FileChooserNative, response: int) -> None:
+        try:
+            if response != Gtk.ResponseType.ACCEPT:
+                return
+            selected = dialog.get_file()
+            path = selected.get_path() if selected is not None else None
+            if not path:
+                self.toast_overlay.add_toast(Adw.Toast.new("Could not read the selected folder."))
+                return
+            new_directory = Path(path)
+            try:
+                save_settings({"download_directory": str(new_directory)})
+            except (OSError, ValueError) as exc:
+                self.toast_overlay.add_toast(Adw.Toast.new(f"Could not save download folder: {exc}"))
+                return
+            self.download_directory = new_directory
+            self.destination_label.set_text(f"Files are saved to {self.download_directory}")
+            self.toast_overlay.add_toast(Adw.Toast.new("Download folder updated."))
+        finally:
+            dialog.destroy()
+
     def _restore_queue(self) -> None:
         for entry in load_queue():
             url = entry["url"]
             try:
-                task = create_download_task(url, DOWNLOAD_DIRECTORY)
+                task = create_download_task(url, self.download_directory)
             except ValueError:
                 continue
             row = DownloadRow(self, url, task)
@@ -237,7 +277,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
     def _on_add_clicked(self, _button: Gtk.Button) -> None:
         dialog = Adw.AlertDialog(
             heading="Add a download",
-            body=f"Enter a direct file URL or an HLS/DASH manifest URL. The file will be saved in {DOWNLOAD_DIRECTORY}. HLS/DASH downloads require FFmpeg.",
+            body=f"Enter a direct file URL or an HLS/DASH manifest URL. The file will be saved in {self.download_directory}. HLS/DASH downloads require FFmpeg.",
         )
         entry = Gtk.Entry()
         entry.set_placeholder_text("https://example.com/file.zip")
@@ -275,7 +315,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             self.toast_overlay.add_toast(Adw.Toast.new("URLs with embedded credentials are not accepted."))
             return False
         try:
-            task = create_download_task(url, DOWNLOAD_DIRECTORY)
+            task = create_download_task(url, self.download_directory)
         except ValueError as exc:
             self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
             return False
@@ -327,7 +367,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         if row in self._pending_downloads or row in self._active_downloads:
             return
         try:
-            task = DownloadTask(row.url, DOWNLOAD_DIRECTORY)
+            task = create_download_task(row.url, self.download_directory)
         except ValueError as exc:
             self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
             return
