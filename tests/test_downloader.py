@@ -242,3 +242,92 @@ def test_does_not_finalize_partial_when_416_total_does_not_match(tmp_path: Path)
         thread.join(timeout=2)
         httpd.server_close()
 
+
+
+def test_resume_sends_if_range_from_saved_etag(tmp_path: Path) -> None:
+    import hashlib
+    import json
+
+    observed = {}
+
+    class ValidatorHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            observed["range"] = self.headers.get("Range")
+            observed["if_range"] = self.headers.get("If-Range")
+            offset = int(self.headers.get("Range", "bytes=0-").removeprefix("bytes=").split("-", 1)[0])
+            body = PAYLOAD[offset:]
+            self.send_response(206)
+            self.send_header("ETag", '"payload-v1"')
+            self.send_header("Content-Range", f"bytes {offset}-{len(PAYLOAD) - 1}/{len(PAYLOAD)}")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, _format: str, *_args: object) -> None:
+            pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), ValidatorHandler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url = f"http://127.0.0.1:{httpd.server_port}/payload.bin"
+        partial = tmp_path / "payload.bin.part"
+        offset = 37
+        partial.write_bytes(PAYLOAD[:offset])
+        metadata = partial.with_name(f"{partial.name}.json")
+        metadata.write_text(json.dumps({
+            "url_sha256": hashlib.sha256(url.encode()).hexdigest(),
+            "etag": '"payload-v1"',
+            "last_modified": None,
+        }), encoding="utf-8")
+
+        result = DownloadTask(url, tmp_path).run()
+
+        assert observed["range"] == f"bytes={offset}-"
+        assert observed["if_range"] == '"payload-v1"'
+        assert result.read_bytes() == PAYLOAD
+        assert not metadata.exists()
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+        httpd.server_close()
+
+
+def test_does_not_resume_partial_for_different_url(tmp_path: Path) -> None:
+    import hashlib
+    import json
+
+    observed = {}
+
+    class FreshResponseHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            observed["range"] = self.headers.get("Range")
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(PAYLOAD)))
+            self.end_headers()
+            self.wfile.write(PAYLOAD)
+
+        def log_message(self, _format: str, *_args: object) -> None:
+            pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), FreshResponseHandler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url = f"http://127.0.0.1:{httpd.server_port}/payload.bin"
+        partial = tmp_path / "payload.bin.part"
+        partial.write_bytes(b"stale bytes")
+        partial.with_name(f"{partial.name}.json").write_text(json.dumps({
+            "url_sha256": hashlib.sha256(b"http://different.example/payload.bin").hexdigest(),
+            "etag": '"old-version"',
+            "last_modified": None,
+        }), encoding="utf-8")
+
+        result = DownloadTask(url, tmp_path).run()
+
+        assert observed["range"] is None
+        assert result.read_bytes() == PAYLOAD
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+        httpd.server_close()
