@@ -93,6 +93,10 @@ class DownloadTask:
         if self.state != "queued":
             raise DownloadError(f"Task cannot start from state {self.state!r}")
 
+        if self._cancel.is_set():
+            self._set_state("cancelled")
+            raise DownloadError("Download cancelled before start")
+
         self.destination.mkdir(parents=True, exist_ok=True)
         filename = filename_from_url(self.url)
         target = self.destination / filename
@@ -106,6 +110,10 @@ class DownloadTask:
             raise DownloadError(
                 f"Partial file already exists: {partial}; move or remove it before retrying"
             )
+
+        if self._cancel.is_set():
+            self._set_state("cancelled")
+            raise DownloadError("Download cancelled before start")
 
         request = urllib.request.Request(
             self.url,
