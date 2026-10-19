@@ -174,7 +174,7 @@ def test_rejects_inconsistent_content_range_on_resume(tmp_path: Path) -> None:
         partial.write_bytes(PAYLOAD[:10])
         task = DownloadTask(f"http://127.0.0.1:{httpd.server_port}/payload.bin", tmp_path)
 
-        with pytest.raises(DownloadError, match="invalid Content-Range"):
+        with pytest.raises(DownloadError, match="Content-Range for resume"):
             task.run()
 
         assert partial.read_bytes() == PAYLOAD[:10]
