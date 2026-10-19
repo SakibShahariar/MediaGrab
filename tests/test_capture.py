@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from mediagrab.capture import MediaKind, classify_media, parse_hls_master_playlist
+from mediagrab.capture import (
+    MediaKind,
+    classify_media,
+    parse_dash_representations,
+    parse_hls_master_playlist,
+)
 
 
 @pytest.mark.parametrize(
@@ -62,3 +67,63 @@ def test_rejects_invalid_playlist_and_base_url() -> None:
         parse_hls_master_playlist("https://cdn.example/master.m3u8", "not a playlist")
     with pytest.raises(ValueError, match="valid HTTP"):
         parse_hls_master_playlist("file:///tmp/master.m3u8", "#EXTM3U")
+
+
+
+def test_parses_namespaced_dash_representations_and_inherited_metadata() -> None:
+    manifest = """<?xml version="1.0"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011">
+  <Period>
+    <AdaptationSet mimeType="video/mp4" codecs="avc1.640028">
+      <Representation id="low" bandwidth="800000" width="640" height="360">
+        <BaseURL>video/low.mp4</BaseURL>
+      </Representation>
+      <Representation id="high" bandwidth="2500000" width="1920" height="1080">
+        <BaseURL>https://cdn.example/high.mp4</BaseURL>
+      </Representation>
+    </AdaptationSet>
+    <AdaptationSet mimeType="audio/mp4" codecs="mp4a.40.2">
+      <Representation id="audio" bandwidth="128000">
+        <BaseURL>audio/en.m4a</BaseURL>
+      </Representation>
+    </AdaptationSet>
+  </Period>
+</MPD>"""
+    reps = parse_dash_representations("https://cdn.example/manifests/movie.mpd", manifest)
+    assert len(reps) == 3
+    assert reps[0].url == "https://cdn.example/manifests/video/low.mp4"
+    assert (reps[0].width, reps[0].height, reps[0].bandwidth) == (640, 360, 800000)
+    assert reps[0].mime_type == "video/mp4"
+    assert reps[0].codecs == "avc1.640028"
+    assert reps[1].url == "https://cdn.example/high.mp4"
+    assert reps[2].url == "https://cdn.example/manifests/audio/en.m4a"
+    assert reps[2].mime_type == "audio/mp4"
+    assert reps[2].codecs == "mp4a.40.2"
+
+
+def test_dash_template_representation_does_not_claim_direct_file_url() -> None:
+    manifest = """<MPD><Period><AdaptationSet mimeType="video/mp4">
+      <Representation id="v1" bandwidth="900000">
+        <SegmentTemplate media="chunk-$Number$.m4s" initialization="init.mp4"/>
+      </Representation>
+    </AdaptationSet></Period></MPD>"""
+    reps = parse_dash_representations("https://cdn.example/movie.mpd", manifest)
+    assert len(reps) == 1
+    assert reps[0].url is None
+    assert reps[0].id == "v1"
+    assert reps[0].mime_type == "video/mp4"
+
+
+def test_dash_rejects_invalid_xml_and_non_mpd_documents() -> None:
+    with pytest.raises(ValueError, match="Invalid DASH XML"):
+        parse_dash_representations("https://cdn.example/movie.mpd", "<MPD>")
+    with pytest.raises(ValueError, match="Not a DASH MPD"):
+        parse_dash_representations("https://cdn.example/movie.mpd", "<html/>")
+    with pytest.raises(ValueError, match="valid HTTP"):
+        parse_dash_representations("file:///tmp/movie.mpd", "<MPD/>")
+
+
+def test_dash_manifest_without_representations_returns_empty_list() -> None:
+    assert parse_dash_representations(
+        "https://cdn.example/movie.mpd", "<MPD><Period/></MPD>"
+    ) == []
