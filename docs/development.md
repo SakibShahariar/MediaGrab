@@ -44,7 +44,7 @@ Tests use a local HTTP server and do not need an external download URL or intern
 
 - Unfinished download URLs are saved to `$XDG_STATE_HOME/mediagrab/queue.json`, or `~/.local/state/mediagrab/queue.json` when `XDG_STATE_HOME` is not set.
 - On restart, saved unfinished items are restored as **Interrupted**. They are not restarted automatically; use the retry button to resume or retry them.
-- Queue persistence stores the full download URL so a queued item can be retried. If a URL contains signed query parameters or embedded credentials, those values may be written to the per-user queue file; avoid sharing that file and remove sensitive entries when no longer needed. Browser cookies and authorization headers are not currently collected. Partial transfer data remains in `~/Downloads` as `.part` files.
+- Queue persistence stores the full download URL so a queued item can be retried. Signed query parameters may be written to the per-user queue file; avoid sharing that file and remove sensitive entries when no longer needed. The queue UI redacts query and fragment values. URLs with embedded username/password credentials are rejected when creating or restoring tasks. Browser cookies and authorization headers are not currently collected. Partial transfer data remains in `~/Downloads` as `.part` files.
 - Completed items are not persisted as history; their queue records are removed.
 - At most three downloads run at once; additional downloads wait in the queue.
 - The download folder defaults to `~/Downloads`. Use the folder button in the header to choose another location; the selection is saved in `$XDG_CONFIG_HOME/mediagrab/settings.json` (or `~/.config/mediagrab/settings.json`).

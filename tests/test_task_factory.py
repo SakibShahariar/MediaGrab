@@ -57,3 +57,9 @@ def test_missing_ffmpeg_error_is_preserved_for_ui(tmp_path: Path, monkeypatch) -
 
     with pytest.raises(ValueError, match="FFmpeg is required"):
         task_factory.create_download_task("https://cdn.test/live.m3u8", tmp_path)
+
+
+
+def test_embedded_credentials_are_rejected_for_every_task_kind(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="embedded credentials"):
+        task_factory.create_download_task("https://user:secret@cdn.test/file.zip", tmp_path)

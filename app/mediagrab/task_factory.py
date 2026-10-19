@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlparse
 
 from mediagrab.capture import MediaKind, classify_media
 from mediagrab.downloader import DownloadTask
@@ -15,6 +16,9 @@ def create_download_task(url: str, destination: str | Path):
     Unknown URLs remain eligible for direct HTTP downloads because servers often
     omit useful file extensions.
     """
+    parsed = urlparse(url)
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("URLs with embedded credentials are not accepted")
     kind = classify_media(url)
     if kind in {MediaKind.HLS, MediaKind.DASH}:
         return MediaStreamTask(url, destination)

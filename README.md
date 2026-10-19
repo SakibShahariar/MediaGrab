@@ -39,6 +39,7 @@ The extension will detect candidate media using documented browser APIs. The nat
 
 - GTK4/libadwaita download queue with progress, cancellation, retry, and a three-download concurrency limit.
 - Configurable download folder selected from the native folder chooser and persisted in the XDG user configuration directory.
+- Queue rows redact URL query and fragment values from their on-screen previews, helping avoid accidental exposure of signed download links.
 - HTTP(S) downloads with safe filenames, progress reporting, partial files, cooperative cancellation, and atomic finalization.
 - Optional FFmpeg-backed HLS/DASH downloads using stream copy into Matroska (`.mkv`), with progress updates, cancellation, safe finalization, and errors that do not echo signed URLs. Install FFmpeg with `sudo dnf install ffmpeg`.
 - Validator-aware resume using ETag or Last-Modified, including bounded byte-range responses and safe restart when range continuation is unavailable.

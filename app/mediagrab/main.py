@@ -17,6 +17,7 @@ from mediagrab.downloader import DownloadError, DownloadProgress, DownloadTask
 from mediagrab.task_factory import create_download_task
 from mediagrab.queue_store import load_queue, save_queue
 from mediagrab.settings_store import load_settings, save_settings
+from mediagrab.url_utils import redact_url
 
 
 APP_ID = "io.github.SakibShahariar.MediaGrab"
@@ -48,12 +49,12 @@ class DownloadRow(Adw.ActionRow):
     def __init__(self, window: "MediaGrabWindow", url: str, task: DownloadTask) -> None:
         parsed = urlparse(url)
         title = parsed.path.rsplit("/", 1)[-1] or parsed.netloc or url
-        super().__init__(title=title, subtitle=url)
+        super().__init__(title=title, subtitle=redact_url(url))
         self.window = window
         self.url = url
         self.task = task
         self.is_active = False
-        self._source_url = url
+        self._source_url = redact_url(url)
         self.set_activatable(False)
         self.add_prefix(Gtk.Image.new_from_icon_name("folder-download-symbolic"))
 
