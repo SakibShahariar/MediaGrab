@@ -83,3 +83,16 @@ def test_existing_destination_is_not_overwritten(tmp_path: Path, server: str) ->
         task.run()
 
     assert existing.read_bytes() == b"keep me"
+
+
+
+def test_cancel_before_start_does_not_create_destination(tmp_path: Path) -> None:
+    destination = tmp_path / "not-created"
+    task = DownloadTask("https://example.test/file.bin", destination)
+    task.cancel()
+
+    with pytest.raises(DownloadError, match="cancelled before start"):
+        task.run()
+
+    assert task.state == "cancelled"
+    assert not destination.exists()
