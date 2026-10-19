@@ -46,7 +46,7 @@ The extension will detect candidate media using documented browser APIs. The nat
 
 ## Next milestones
 
-1. **End-to-end browser handoff:** package and register the native host reliably; test Firefox and Chromium-family context menus against a running desktop session.
+1. **End-to-end browser handoff:** native-host registration installer added; validate Firefox and Chromium-family context menus against a running desktop session.
 2. **Automatic detection:** observe documented browser-visible media signals and pass candidate URLs to the capture engine without collecting secrets unnecessarily.
 3. **Media capture:** inspect browser-observed media requests and HLS/DASH manifests; expose quality choices only when verified. DASH template-based segment downloading remains future work.
 4. **Reliability and polish:** configurable destinations, richer transfer controls, diagnostics with secrets redacted, packaging, and broader browser validation.
@@ -70,7 +70,7 @@ The extension will detect candidate media using documented browser APIs. The nat
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines. Browser handoff setup and current limitations are documented in [docs/development.md](docs/development.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines. Browser handoff setup and current limitations are documented in [docs/development.md](docs/development.md) and [the native-host installer guide](docs/browser-native-host-installer.md).
 
 ## License
 
