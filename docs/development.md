@@ -75,3 +75,10 @@ The native host uses a versioned JSON message framed with a four-byte little-end
 - The extension passes the selected page/link URL. A page URL is not necessarily a downloadable file.
 - Native-host registration is currently documented through example templates rather than an installer.
 - Browser extension behavior and GTK UI integration still need end-to-end testing on a desktop. Python CI tests validate the protocol boundary but cannot verify browser installation or visual behavior.
+
+
+## Automated native-host registration
+
+After installing MediaGrab into the Python environment that provides the `mediagrab-native-host` command, use the installer to register the browser bridge. Firefox uses its fixed extension ID; Chromium requires the unpacked extension ID.
+
+See [Browser Native Host Installer](browser-native-host-installer.md) for install, uninstall, permissions, and troubleshooting details.
