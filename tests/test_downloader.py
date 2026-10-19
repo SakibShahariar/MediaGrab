@@ -138,6 +138,69 @@ def test_resumes_existing_partial_file(tmp_path: Path, server: str) -> None:
     assert not partial.exists()
 
 
+
+def test_download_continues_across_bounded_range_responses(tmp_path: Path) -> None:
+    requests = []
+
+    class BoundedRangeHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            range_header = self.headers.get("Range")
+            requests.append(range_header)
+            if not range_header:
+                self.send_response(200)
+                self.send_header("ETag", '"payload-v1"')
+                self.send_header("Content-Length", str(len(PAYLOAD)))
+                self.end_headers()
+                self.wfile.write(PAYLOAD)
+                return
+
+            offset = int(range_header.removeprefix("bytes=").split("-", 1)[0])
+            if offset >= len(PAYLOAD):
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{len(PAYLOAD)}")
+                self.end_headers()
+                return
+
+            end = min(offset + 1023, len(PAYLOAD) - 1)
+            body = PAYLOAD[offset:end + 1]
+            self.send_response(206)
+            self.send_header("ETag", '"payload-v1"')
+            self.send_header("Content-Range", f"bytes {offset}-{end}/{len(PAYLOAD)}")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, _format: str, *_args: object) -> None:
+            pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), BoundedRangeHandler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url = f"http://127.0.0.1:{httpd.server_port}/payload.bin"
+        partial = tmp_path / "payload.bin.part"
+        offset = 19
+        partial.write_bytes(PAYLOAD[:offset])
+        import hashlib
+        import json
+        partial.with_name(f"{partial.name}.json").write_text(json.dumps({
+            "url_sha256": hashlib.sha256(url.encode()).hexdigest(),
+            "etag": '"payload-v1"',
+            "last_modified": None,
+        }), encoding="utf-8")
+
+        result = DownloadTask(url, tmp_path, chunk_size=257).run()
+
+        assert result.read_bytes() == PAYLOAD
+        assert len(requests) > 1
+        assert requests[0] == f"bytes={offset}-"
+        assert requests[1] == f"bytes={offset + 1024}-"
+        assert not partial.exists()
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+        httpd.server_close()
+
 def test_server_ignoring_range_restarts_without_duplicate_bytes(tmp_path: Path) -> None:
     class IgnoreRangeHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:  # noqa: N802
