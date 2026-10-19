@@ -515,3 +515,64 @@ def test_rejects_invalid_content_length(tmp_path: Path) -> None:
         httpd.shutdown()
         thread.join(timeout=2)
         httpd.server_close()
+
+
+def test_rejects_nonpositive_timeout(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="timeout must be positive"):
+        DownloadTask("https://example.test/file.bin", tmp_path, timeout=0)
+
+
+def test_rejects_changed_total_between_range_segments(tmp_path: Path) -> None:
+    import hashlib
+    import json
+
+    requests = 0
+
+    class ChangingTotalHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            nonlocal requests
+            requests += 1
+            offset = int(
+                self.headers.get("Range", "bytes=0-")
+                .removeprefix("bytes=")
+                .split("-", 1)[0]
+            )
+            if requests == 1:
+                end = offset + 15
+                total = len(PAYLOAD)
+            else:
+                end = min(offset + 15, len(PAYLOAD) - 1)
+                total = len(PAYLOAD) + 1
+            body = PAYLOAD[offset:end + 1]
+            self.send_response(206)
+            self.send_header("ETag", '"payload-v1"')
+            self.send_header("Content-Range", f"bytes {offset}-{end}/{total}")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, _format: str, *_args: object) -> None:
+            pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), ChangingTotalHandler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url = f"http://127.0.0.1:{httpd.server_port}/payload.bin"
+        partial = tmp_path / "payload.bin.part"
+        partial.write_bytes(PAYLOAD[:8])
+        partial.with_name(f"{partial.name}.json").write_text(json.dumps({
+            "url_sha256": hashlib.sha256(url.encode()).hexdigest(),
+            "etag": '"payload-v1"',
+            "last_modified": None,
+        }), encoding="utf-8")
+
+        with pytest.raises(DownloadError, match="inconsistent Content-Range"):
+            DownloadTask(url, tmp_path).run()
+
+        assert not (tmp_path / "payload.bin").exists()
+        assert partial.read_bytes() == PAYLOAD[:24]
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+        httpd.server_close()
