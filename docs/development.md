@@ -1,6 +1,6 @@
 # Development Setup
 
-These instructions target Fedora with GNOME. MediaGrab currently contains an initial GTK4/libadwaita UI shell; actual downloads are not implemented yet.
+These instructions target Fedora with GNOME. MediaGrab currently has a GTK4/libadwaita download queue and a basic HTTP(S) download core. Browser media capture is not implemented yet.
 
 ## Install system dependencies
 
@@ -8,26 +8,44 @@ These instructions target Fedora with GNOME. MediaGrab currently contains an ini
 sudo dnf install python3 python3-gobject gtk4 libadwaita
 ```
 
-GTK introspection typelibs are supplied by the Fedora packages above. If the app reports that Gtk or Adw namespaces are unavailable, check that the matching system packages are installed.
+## Set up a development environment
 
-## Run from the repository root
+From the repository root:
 
 ```fish
 python3 -m venv --system-site-packages .venv
 source .venv/bin/activate.fish
-python -m pip install --editable .
+python -m pip install --editable ".[test]"
+```
+
+The `--system-site-packages` option lets the virtual environment see Fedora's PyGObject bindings. If GTK namespaces are unavailable, run the app with Fedora's system Python after installing the system packages.
+
+## Run the app
+
+```fish
 mediagrab
 ```
 
-If the environment does not expose the system PyGObject bindings inside the virtual environment, run the app with Fedora's system Python instead:
+Or, without installing the console entry point:
 
 ```fish
-python3 -m app.mediagrab.main
+python -m mediagrab.main
 ```
+
+## Run tests
+
+```fish
+python -m pytest -v
+```
+
+Tests use a local HTTP server and do not need an external download URL or internet access.
 
 ## Current limitations
 
 - The queue is in-memory and is lost when the app exits.
-- Adding a URL only creates a placeholder queue row.
-- No network requests or file downloads are performed.
+- Files are saved to `~/Downloads`; the destination is not configurable yet.
+- Existing completed filenames are not overwritten.
+- Interrupted downloads keep a `.part` file. A new task can resume it if the server correctly supports HTTP byte ranges. If the server ignores the range request, MediaGrab restarts the partial from byte zero.
+- Cancellation is cooperative and may wait for the current network read to return or time out.
+- Pause/resume controls, retries from the UI, queue persistence, and concurrency limits are not implemented.
 - Browser extension and native messaging integration are not implemented.
