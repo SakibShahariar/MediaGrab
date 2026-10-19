@@ -18,6 +18,7 @@ from mediagrab.downloader import DownloadError, DownloadProgress, DownloadTask
 
 APP_ID = "io.github.SakibShahariar.MediaGrab"
 DOWNLOAD_DIRECTORY = Path.home() / "Downloads"
+MAX_CONCURRENT_DOWNLOADS = 3
 
 
 def format_bytes(value: float) -> str:
@@ -49,6 +50,8 @@ class DownloadRow(Adw.ActionRow):
         self.window = window
         self.url = url
         self.task = task
+        self.is_active = False
+        self._source_url = url
         self.set_activatable(False)
         self.add_prefix(Gtk.Image.new_from_icon_name("folder-download-symbolic"))
 
@@ -89,9 +92,7 @@ class DownloadRow(Adw.ActionRow):
         self.set_subtitle(self._source_url)
 
     def _on_cancel(self, _button: Gtk.Button) -> None:
-        self.task.cancel()
-        self.status_label.set_text("Cancelling…")
-        self.cancel_button.set_sensitive(False)
+        self.window.cancel_download(self)
 
     def update_progress(self, progress: DownloadProgress) -> None:
         if progress.total and progress.total > 0:
@@ -104,16 +105,9 @@ class DownloadRow(Adw.ActionRow):
         if progress.state == "completed":
             self.status_label.set_text("Completed")
             self.cancel_button.set_visible(False)
-        else:
+        elif self.is_active:
             self.status_label.set_text(format_bytes(progress.bytes_per_second))
-        self.set_subtitle(f"{self.get_subtitle_url()} · {size_text}")
-
-    def get_subtitle_url(self) -> str:
-        # Keep the source URL as the stable first part of the subtitle.
-        return self._source_url
-
-    def set_source_url(self, url: str) -> None:
-        self._source_url = url
+        self.set_subtitle(f"{self._source_url} · {size_text}")
 
     def finish(self, state: str, message: str | None = None) -> None:
         self.status_label.set_text(state)
@@ -132,6 +126,8 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         self.set_title("MediaGrab")
         self.set_default_size(1000, 680)
         self._rows: list[DownloadRow] = []
+        self._pending_downloads: list[DownloadRow] = []
+        self._active_downloads: set[DownloadRow] = set()
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.set_content(root)
@@ -187,7 +183,10 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         scroller.set_child(self.list_box)
         content.append(scroller)
 
-        footer = Gtk.Label(label="Basic HTTP/HTTPS downloads · Browser capture not yet implemented")
+        footer = Gtk.Label(
+            label=f"Up to {MAX_CONCURRENT_DOWNLOADS} simultaneous downloads · "
+            "Browser capture not yet implemented"
+        )
         footer.add_css_class("dim-label")
         footer.add_css_class("caption")
         footer.set_xalign(0)
@@ -236,33 +235,59 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             return
 
         row = DownloadRow(self, url, task)
-        row.set_source_url(url)
         self._rows.append(row)
         self.list_box.append(row)
         self.count_label.set_text(
             f"{len(self._rows)} item" + ("" if len(self._rows) == 1 else "s")
         )
-        self.toast_overlay.add_toast(Adw.Toast.new("Download started."))
+        self._enqueue_download(row)
+        self.toast_overlay.add_toast(Adw.Toast.new("Added to download queue."))
 
-        self._start_download(task, row)
+    def _enqueue_download(self, row: DownloadRow) -> None:
+        if row in self._pending_downloads or row in self._active_downloads:
+            return
+        self._pending_downloads.append(row)
+        row.status_label.set_text("Queued")
+        self._start_next_downloads()
 
-    def _start_download(self, task: DownloadTask, row: DownloadRow) -> None:
-        threading.Thread(
-            target=self._run_download,
-            args=(task, row),
-            daemon=True,
-            name="mediagrab-download",
-        ).start()
+    def _start_next_downloads(self) -> None:
+        while (
+            self._pending_downloads
+            and len(self._active_downloads) < MAX_CONCURRENT_DOWNLOADS
+        ):
+            row = self._pending_downloads.pop(0)
+            self._active_downloads.add(row)
+            row.is_active = True
+            row.status_label.set_text("Starting…")
+            threading.Thread(
+                target=self._run_download,
+                args=(row.task, row),
+                daemon=True,
+                name="mediagrab-download",
+            ).start()
+
+    def cancel_download(self, row: DownloadRow) -> None:
+        if row in self._pending_downloads:
+            self._pending_downloads.remove(row)
+            row.finish("Cancelled")
+            self.toast_overlay.add_toast(Adw.Toast.new("Queued download cancelled."))
+            return
+        if row in self._active_downloads:
+            row.task.cancel()
+            row.status_label.set_text("Cancelling…")
+            row.cancel_button.set_sensitive(False)
 
     def retry_download(self, row: DownloadRow) -> None:
+        if row in self._pending_downloads or row in self._active_downloads:
+            return
         try:
             task = DownloadTask(row.url, DOWNLOAD_DIRECTORY)
         except ValueError as exc:
             self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
             return
         row.prepare_retry(task)
-        self.toast_overlay.add_toast(Adw.Toast.new("Retrying download…"))
-        self._start_download(task, row)
+        self._enqueue_download(row)
+        self.toast_overlay.add_toast(Adw.Toast.new("Retry added to queue."))
 
     def _run_download(self, task: DownloadTask, row: DownloadRow) -> None:
         try:
@@ -282,6 +307,8 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             )
 
     def _download_finished(self, row: DownloadRow, state: str, detail: str) -> bool:
+        row.is_active = False
+        self._active_downloads.discard(row)
         row.finish(state, detail if state == "Failed" else None)
         if state == "Completed":
             self.toast_overlay.add_toast(Adw.Toast.new(f"Saved: {detail}"))
@@ -289,6 +316,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             self.toast_overlay.add_toast(Adw.Toast.new(f"Download failed: {detail}"))
         elif state == "Cancelled":
             self.toast_overlay.add_toast(Adw.Toast.new("Download cancelled."))
+        self._start_next_downloads()
         return GLib.SOURCE_REMOVE
 
 
