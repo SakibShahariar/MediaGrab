@@ -1,6 +1,6 @@
 # Development Setup
 
-These instructions target Fedora with GNOME. MediaGrab currently has a GTK4/libadwaita download queue and a basic HTTP(S) download core. Browser media capture is not implemented yet.
+These instructions target Fedora with GNOME. MediaGrab has a GTK4/libadwaita download queue, a basic HTTP(S) download core, and an early manual browser-to-desktop handoff prototype. Automatic browser media detection is not implemented yet.
 
 ## Install system dependencies
 
@@ -51,7 +51,7 @@ Tests use a local HTTP server and do not need an external download URL or intern
 - Existing completed filenames are not overwritten.
 - Interrupted downloads can resume if the server supports HTTP byte ranges. If the server ignores the range request, MediaGrab restarts the partial from byte zero.
 - Cancellation is cooperative and may wait for the current network read to return or time out.
-- Browser extension and native messaging integration are not implemented.
+- Browser handoff is a manual prototype; automatic media detection and end-to-end desktop/browser verification remain outstanding.
 
 
 ## Browser handoff prototype

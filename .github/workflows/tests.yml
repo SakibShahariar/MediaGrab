@@ -30,5 +30,15 @@ jobs:
       - name: Install package and test dependencies
         run: python -m pip install -e ".[test]"
 
+      - name: Validate browser extension JavaScript
+        run: |
+          node --check browser-extension/firefox/background.js
+          node --check browser-extension/chromium/background.js
+
+      - name: Validate browser manifests
+        run: |
+          python -c "import json, pathlib; [json.loads(p.read_text()) for p in pathlib.Path('.').glob('browser-extension/*/manifest.json')]"
+          python -c "import json, pathlib; [json.loads(p.read_text()) for p in pathlib.Path('native-host').glob('*.json.example')]"
+
       - name: Run tests
         run: python -m pytest -v

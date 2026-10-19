@@ -24,3 +24,12 @@ def test_native_host_templates_use_matching_name_and_expected_allowlist() -> Non
     assert firefox["name"] == chromium["name"] == "io.github.SakibShahariar.MediaGrab"
     assert firefox["allowed_extensions"] == ["mediagrab@github.com"]
     assert "REPLACE_WITH_EXTENSION_ID" in chromium["allowed_origins"][0]
+
+
+
+def test_firefox_background_uses_promise_based_browser_apis() -> None:
+    script = (ROOT / "browser-extension/firefox/background.js").read_text()
+    assert "browser.contextMenus.removeAll()" in script
+    assert "browser.runtime.sendNativeMessage(HOST_NAME" in script
+    assert "removeAll(()" not in script
+    assert "sendNativeMessage(HOST_NAME, {" in script
