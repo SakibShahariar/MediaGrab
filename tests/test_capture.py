@@ -9,6 +9,7 @@ from mediagrab.capture import (
     classify_media,
     parse_dash_representations,
     parse_hls_master_playlist,
+    parse_hls_renditions,
 )
 
 
@@ -127,3 +128,39 @@ def test_dash_manifest_without_representations_returns_empty_list() -> None:
     assert parse_dash_representations(
         "https://cdn.example/movie.mpd", "<MPD><Period/></MPD>"
     ) == []
+
+
+
+def test_parses_hls_audio_and_subtitle_renditions() -> None:
+    playlist = """#EXTM3U
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="English",LANGUAGE="en",DEFAULT=YES,AUTOSELECT=YES,URI="audio/en.m3u8"
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English CC",LANGUAGE="en",DEFAULT=YES,AUTOSELECT=YES,FORCED=NO,URI="../subs/en.vtt"
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Japanese",LANGUAGE="ja",URI="https://cdn.example/ja.m3u8"
+#EXT-X-MEDIA:TYPE=CLOSED-CAPTIONS,GROUP-ID="cc",NAME="CC1",INSTREAM-ID="CC1"
+"""
+    tracks = parse_hls_renditions("https://cdn.example/show/master.m3u8", playlist)
+    assert len(tracks) == 3
+    assert tracks[0].kind == "audio"
+    assert tracks[0].url == "https://cdn.example/show/audio/en.m3u8"
+    assert tracks[0].language == "en"
+    assert tracks[0].is_default and tracks[0].autoselect
+    assert tracks[1].kind == "subtitles"
+    assert tracks[1].url == "https://cdn.example/subs/en.vtt"
+    assert tracks[1].name == "English CC"
+    assert tracks[1].forced is False
+    assert tracks[2].url == "https://cdn.example/ja.m3u8"
+    assert tracks[2].language == "ja"
+
+
+def test_hls_renditions_allow_tracks_without_separate_uri() -> None:
+    playlist = """#EXTM3U
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="Main",DEFAULT=YES
+"""
+    tracks = parse_hls_renditions("https://cdn.example/master.m3u8", playlist)
+    assert len(tracks) == 1
+    assert tracks[0].url is None
+
+
+def test_hls_renditions_reject_invalid_playlist() -> None:
+    with pytest.raises(ValueError, match="Not a valid HLS playlist"):
+        parse_hls_renditions("https://cdn.example/master.m3u8", "not a playlist")
