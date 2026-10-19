@@ -41,14 +41,14 @@ The extension will detect candidate media using documented browser APIs. The nat
 - HTTP(S) downloads with safe filenames, progress reporting, partial files, cooperative cancellation, and atomic finalization.
 - Validator-aware resume using ETag or Last-Modified, including bounded byte-range responses and safe restart when range continuation is unavailable.
 - Crash-resistant persistence for unfinished queue entries; interrupted items can be retried after restart.
-- Initial media inspection helpers for direct media, HLS, and DASH classification, plus HLS master-playlist variant parsing.
+- Initial media inspection helpers for direct media, HLS, and DASH classification, HLS master-playlist variant parsing, and DASH representation metadata extraction.
 - Automated tests for transfers and media parsing, run by GitHub Actions on Python 3.11–3.14.
 
 ## Next milestones
 
 1. **Browser bridge:** Firefox WebExtension and validated native-messaging host.
 2. **Manual handoff:** send a selected link from Firefox to the desktop app before implementing automatic detection.
-3. **Media capture:** inspect browser-observed media requests and HLS/DASH manifests; expose quality choices only when verified.
+3. **Media capture:** inspect browser-observed media requests and HLS/DASH manifests; expose quality choices only when verified. DASH template-based segment downloading remains future work.
 4. **Reliability and polish:** configurable destinations, richer transfer controls, diagnostics with secrets redacted, packaging, and later Chromium support.
 
 ## Development principles
