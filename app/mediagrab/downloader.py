@@ -96,7 +96,6 @@ class DownloadTask:
         """Perform the transfer. Call from a worker thread, not the GTK thread."""
         if self.state != "queued":
             raise DownloadError(f"Task cannot start from state {self.state!r}")
-
         if self._cancel.is_set():
             self._set_state("cancelled")
             raise DownloadError("Download cancelled before start")
@@ -106,28 +105,27 @@ class DownloadTask:
         target = self.destination / filename
         partial = self.destination / f"{filename}.part"
         metadata = partial.with_name(f"{partial.name}.json")
-
         if target.exists():
             self._set_state("failed")
             raise DownloadError(f"Destination already exists: {target}")
+
         offset = partial.stat().st_size if partial.exists() else 0
         validator: tuple[str, str] | None = None
         if offset and metadata.exists():
             try:
                 saved = json.loads(metadata.read_text(encoding="utf-8"))
                 if saved.get("url_sha256") == hashlib.sha256(self.url.encode()).hexdigest():
-                    if saved.get("etag"):
-                        validator = ("If-Range", saved["etag"])
-                    elif saved.get("last_modified"):
-                        validator = ("If-Range", saved["last_modified"])
+                    etag = saved.get("etag")
+                    modified = saved.get("last_modified")
+                    if etag and not etag.startswith("W/"):
+                        validator = ("If-Range", etag)
+                    elif modified:
+                        validator = ("If-Range", modified)
                 else:
-                    # A same-named URL may point to a different resource.
                     offset = 0
             except (OSError, ValueError, TypeError):
-                # Unreadable metadata cannot safely validate the partial.
                 offset = 0
-        # Never append bytes from an unvalidated partial. Older partials without
-        # sidecar metadata are restarted from byte zero.
+        # Never append bytes from an unvalidated partial.
         if offset and validator is None:
             offset = 0
 
@@ -135,122 +133,165 @@ class DownloadTask:
             self._set_state("cancelled")
             raise DownloadError("Download cancelled before start")
 
-        headers = {"User-Agent": self.user_agent, "Accept-Encoding": "identity"}
-        if offset:
-            headers["Range"] = f"bytes={offset}-"
-            if validator is not None:
-                headers[validator[0]] = validator[1]
-        request = urllib.request.Request(self.url, headers=headers)
         started = time.monotonic()
-        received = 0
+        received = offset
         total: int | None = None
         self._set_state("downloading")
 
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                status = getattr(response, "status", 200)
-                if status < 200 or status >= 300:
-                    raise DownloadError(f"Unexpected HTTP status: {status}")
+            while True:
+                headers = {"User-Agent": self.user_agent, "Accept-Encoding": "identity"}
+                if offset:
+                    headers["Range"] = f"bytes={offset}-"
+                    if validator is not None:
+                        headers[validator[0]] = validator[1]
+                request = urllib.request.Request(self.url, headers=headers)
 
-                append = offset > 0 and status == 206
-                if offset and status == 200:
-                    # Server ignored Range: restart rather than appending duplicate bytes.
-                    offset = 0
-                elif offset and status != 206:
-                    raise DownloadError(f"Server cannot resume this download (HTTP {status})")
+                with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                    status = getattr(response, "status", 200)
+                    if status < 200 or status >= 300:
+                        raise DownloadError(f"Unexpected HTTP status: {status}")
 
-                content_range = response.headers.get("Content-Range", "")
-                range_match = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", content_range)
-                if append:
-                    if range_match is None:
-                        raise DownloadError("Server returned an invalid Content-Range for resume")
-                    range_start, range_end, range_total = map(int, range_match.groups())
-                    if (
-                        range_start != offset
-                        or range_end < range_start
-                        or range_total <= range_end
-                        or range_end != range_total - 1
-                    ):
-                        raise DownloadError("Server returned an inconsistent Content-Range for resume")
-
-                etag = response.headers.get("ETag")
-                last_modified = response.headers.get("Last-Modified")
-                if etag or last_modified:
-                    metadata_tmp = metadata.with_name(f"{metadata.name}.tmp")
-                    try:
-                        metadata_tmp.write_text(
-                            json.dumps({
-                                "url_sha256": hashlib.sha256(self.url.encode()).hexdigest(),
-                                "etag": etag,
-                                "last_modified": last_modified,
-                            }),
-                            encoding="utf-8",
+                    append = offset > 0 and status == 206
+                    if offset and status == 200:
+                        # If-Range failed or Range was ignored: discard old bytes.
+                        offset = 0
+                        received = 0
+                    elif offset and status != 206:
+                        raise DownloadError(
+                            f"Server cannot resume this download (HTTP {status})"
                         )
-                        os.replace(metadata_tmp, metadata)
-                    except OSError:
-                        try:
-                            metadata_tmp.unlink(missing_ok=True)
-                        except OSError:
-                            pass
-                        # A failed metadata write must not fail an otherwise valid transfer.
-                content_length = response.headers.get("Content-Length")
-                response_length: int | None = None
-                if content_length:
-                    try:
-                        response_length = int(content_length)
-                    except ValueError:
-                        response_length = None
-                    if response_length is not None and response_length < 0:
-                        response_length = None
-                if append:
-                    total = range_total
-                    if response_length is not None and response_length != range_end - range_start + 1:
-                        raise DownloadError("Content-Length does not match Content-Range")
-                else:
-                    total = response_length
 
-                mode = "ab" if append else "wb"
-                received = offset if append else 0
-                with partial.open(mode) as output:
-                    while True:
-                        if self._cancel.is_set():
-                            self._set_state("cancelled")
-                            raise DownloadError("Download cancelled")
-
-                        chunk = response.read(self.chunk_size)
-                        if not chunk:
-                            break
-                        output.write(chunk)
-                        received += len(chunk)
-
-                        elapsed = max(time.monotonic() - started, 0.001)
-                        if on_progress is not None:
-                            on_progress(
-                                DownloadProgress(
-                                    received=received,
-                                    total=total,
-                                    bytes_per_second=received / elapsed,
-                                    state="downloading",
-                                )
+                    range_end: int | None = None
+                    if append:
+                        content_range = response.headers.get("Content-Range", "")
+                        range_match = re.fullmatch(
+                            r"bytes (\d+)-(\d+)/(\d+)", content_range
+                        )
+                        if range_match is None:
+                            raise DownloadError(
+                                "Server returned an invalid Content-Range for resume"
                             )
+                        range_start, range_end, range_total = map(
+                            int, range_match.groups()
+                        )
+                        if (
+                            range_start != offset
+                            or range_end < range_start
+                            or range_total <= range_end
+                        ):
+                            raise DownloadError(
+                                "Server returned an inconsistent Content-Range for resume"
+                            )
+                        total = range_total
 
-                    output.flush()
-                    os.fsync(output.fileno())
+                    etag = response.headers.get("ETag")
+                    last_modified = response.headers.get("Last-Modified")
+                    if etag or last_modified:
+                        metadata_tmp = metadata.with_name(f"{metadata.name}.tmp")
+                        try:
+                            metadata_tmp.write_text(
+                                json.dumps({
+                                    "url_sha256": hashlib.sha256(
+                                        self.url.encode()
+                                    ).hexdigest(),
+                                    "etag": etag,
+                                    "last_modified": last_modified,
+                                }),
+                                encoding="utf-8",
+                            )
+                            os.replace(metadata_tmp, metadata)
+                            if etag and not etag.startswith("W/"):
+                                validator = ("If-Range", etag)
+                            elif last_modified:
+                                validator = ("If-Range", last_modified)
+                        except OSError:
+                            try:
+                                metadata_tmp.unlink(missing_ok=True)
+                            except OSError:
+                                pass
+                            # Metadata failure must not fail an otherwise valid transfer.
 
-            if self._cancel.is_set():
-                self._set_state("cancelled")
-                raise DownloadError("Download cancelled")
+                    content_length = response.headers.get("Content-Length")
+                    response_length: int | None = None
+                    if content_length:
+                        try:
+                            response_length = int(content_length)
+                        except ValueError:
+                            response_length = None
+                        if response_length is not None and response_length < 0:
+                            response_length = None
 
-            if total is not None and received != total:
-                raise DownloadError(
-                    f"Incomplete response: expected {total} bytes, received {received}"
-                )
+                    if append:
+                        segment_length = range_end - range_start + 1
+                        if (
+                            response_length is not None
+                            and response_length != segment_length
+                        ):
+                            raise DownloadError(
+                                "Content-Length does not match Content-Range"
+                            )
+                    else:
+                        total = response_length
+
+                    mode = "ab" if append else "wb"
+                    received = offset if append else 0
+                    segment_received = 0
+                    with partial.open(mode) as output:
+                        while True:
+                            if self._cancel.is_set():
+                                self._set_state("cancelled")
+                                raise DownloadError("Download cancelled")
+                            chunk = response.read(self.chunk_size)
+                            if not chunk:
+                                break
+                            output.write(chunk)
+                            received += len(chunk)
+                            segment_received += len(chunk)
+                            elapsed = max(time.monotonic() - started, 0.001)
+                            if on_progress is not None:
+                                on_progress(
+                                    DownloadProgress(
+                                        received=received,
+                                        total=total,
+                                        bytes_per_second=received / elapsed,
+                                        state="downloading",
+                                    )
+                                )
+                        output.flush()
+                        os.fsync(output.fileno())
+
+                    if append and segment_received != range_end - range_start + 1:
+                        raise DownloadError(
+                            "Incomplete range response: expected "
+                            f"{range_end - range_start + 1} bytes, received {segment_received}"
+                        )
+                    if not append and total is not None and received != total:
+                        raise DownloadError(
+                            f"Incomplete response: expected {total} bytes, received {received}"
+                        )
+
+                if self._cancel.is_set():
+                    self._set_state("cancelled")
+                    raise DownloadError("Download cancelled")
+
+                # A valid 206 may contain only a bounded segment. Keep requesting
+                # from the next byte until the server-reported representation ends.
+                if append and total is not None and range_end is not None:
+                    if range_end < total - 1:
+                        offset = received
+                        continue
+                    if received != total:
+                        raise DownloadError(
+                            f"Incomplete response: expected {total} bytes, received {received}"
+                        )
+                break
 
             os.replace(partial, target)
             try:
                 metadata.unlink(missing_ok=True)
             except OSError:
-                pass  # A stale sidecar must not turn a completed download into a failure.
+                pass
             self._set_state("completed")
             if on_progress is not None:
                 elapsed = max(time.monotonic() - started, 0.001)
@@ -266,12 +307,14 @@ class DownloadTask:
 
         except urllib.error.HTTPError as exc:
             if exc.code == 416 and offset > 0 and partial.exists():
-                # A server may reject Range when the partial is already complete.
-                # Promote it only when the server reports a total matching its size.
                 match = re.fullmatch(
                     r"bytes \*/(\d+)", exc.headers.get("Content-Range", "")
                 )
-                if match is not None and partial.stat().st_size == int(match.group(1)):
+                try:
+                    partial_size = partial.stat().st_size
+                except OSError:
+                    partial_size = -1
+                if match is not None and partial_size == int(match.group(1)):
                     try:
                         exc.close()
                         if self._cancel.is_set():
