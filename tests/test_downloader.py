@@ -117,11 +117,20 @@ def test_cancel_before_start_does_not_create_destination(tmp_path: Path) -> None
 
 
 def test_resumes_existing_partial_file(tmp_path: Path, server: str) -> None:
+    import hashlib
+    import json
+
+    url = f"{server}/payload.bin"
     partial = tmp_path / "payload.bin.part"
     offset = len(PAYLOAD) // 3
     partial.write_bytes(PAYLOAD[:offset])
+    partial.with_name(f"{partial.name}.json").write_text(json.dumps({
+        "url_sha256": hashlib.sha256(url.encode()).hexdigest(),
+        "etag": '"payload-v1"',
+        "last_modified": None,
+    }), encoding="utf-8")
 
-    task = DownloadTask(f"{server}/payload.bin", tmp_path, chunk_size=2048)
+    task = DownloadTask(url, tmp_path, chunk_size=2048)
     result = task.run()
 
     assert result.read_bytes() == PAYLOAD
@@ -322,6 +331,38 @@ def test_does_not_resume_partial_for_different_url(tmp_path: Path) -> None:
             "etag": '"old-version"',
             "last_modified": None,
         }), encoding="utf-8")
+
+        result = DownloadTask(url, tmp_path).run()
+
+        assert observed["range"] is None
+        assert result.read_bytes() == PAYLOAD
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+        httpd.server_close()
+
+
+def test_legacy_partial_without_validator_restarts_from_zero(tmp_path: Path) -> None:
+    observed = {}
+
+    class NoValidatorHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            observed["range"] = self.headers.get("Range")
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(PAYLOAD)))
+            self.end_headers()
+            self.wfile.write(PAYLOAD)
+
+        def log_message(self, _format: str, *_args: object) -> None:
+            pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), NoValidatorHandler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        partial = tmp_path / "payload.bin.part"
+        partial.write_bytes(b"unvalidated old bytes")
+        url = f"http://127.0.0.1:{httpd.server_port}/payload.bin"
 
         result = DownloadTask(url, tmp_path).run()
 
