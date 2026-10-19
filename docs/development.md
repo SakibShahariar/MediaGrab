@@ -13,7 +13,7 @@ GTK introspection typelibs are supplied by the Fedora packages above. If the app
 ## Run from the repository root
 
 ```fish
-python3 -m venv .venv
+python3 -m venv --system-site-packages .venv
 source .venv/bin/activate.fish
 python -m pip install --editable .
 mediagrab
