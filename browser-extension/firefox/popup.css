@@ -1,0 +1,16 @@
+:root { color-scheme: light dark; font: 14px system-ui, sans-serif; }
+body { width: 340px; margin: 0; background: Canvas; color: CanvasText; }
+main { padding: 16px; }
+header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: #39734a; color: white; font-weight: 750; font-size: 20px; }
+h1 { font-size: 16px; margin: 0; } header p { margin: 2px 0 0; opacity: .7; font-size: 12px; }
+button { border: 1px solid color-mix(in srgb, CanvasText 18%, transparent); border-radius: 9px; padding: 9px 12px; cursor: pointer; color: inherit; background: Canvas; }
+button.primary { width: 100%; background: #39734a; color: white; border-color: transparent; font-weight: 650; }
+button:disabled { opacity: .55; cursor: default; }
+#status { font-size: 12px; opacity: .8; line-height: 1.45; }
+#candidates { padding: 0; margin: 12px 0; list-style: none; max-height: 260px; overflow: auto; }
+.candidate { padding: 10px 0; border-top: 1px solid color-mix(in srgb, CanvasText 14%, transparent); }
+.candidate .url { font-size: 12px; overflow-wrap: anywhere; margin-bottom: 7px; }
+.candidate .kind { opacity: .65; font-size: 11px; text-transform: uppercase; margin-bottom: 5px; }
+.candidate button { font-size: 12px; padding: 5px 9px; }
+.note { font-size: 11px; line-height: 1.4; opacity: .6; }
