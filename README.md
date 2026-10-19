@@ -2,7 +2,7 @@
 
 A native Linux download manager focused on reliable browser-to-desktop media capture, inspired by the workflow of Internet Download Manager (IDM).
 
-> **Status:** Early implementation. The GTK4/libadwaita queue, HTTP(S) download core, media-manifest inspection helpers, and a manual Firefox/Chromium browser-to-desktop handoff prototype are implemented. Automatic media detection and stream downloading are not implemented yet.
+> **Status:** Early implementation. The GTK4/libadwaita queue, HTTP(S) download core, media-manifest inspection helpers, and a manual Firefox/Chromium browser-to-desktop handoff prototype are implemented. Automatic background detection and stream downloading are not implemented yet; the browser popup now offers an on-demand scan of resource URLs already exposed by the active page.
 
 ## Goals
 
@@ -42,12 +42,13 @@ The extension will detect candidate media using documented browser APIs. The nat
 - Validator-aware resume using ETag or Last-Modified, including bounded byte-range responses and safe restart when range continuation is unavailable.
 - Crash-resistant persistence for unfinished queue entries; interrupted items can be retried after restart.
 - Initial media inspection helpers for direct media, HLS, and DASH classification, HLS master-playlist variant parsing, alternate HLS audio/subtitle track parsing, and DASH representation metadata extraction.
+- Browser popup for user-triggered scans of page resource timing, with explicit per-candidate handoff and URL query-string redaction in the display.
 - Automated tests for transfers and media parsing, run by GitHub Actions on Python 3.11–3.14.
 
 ## Next milestones
 
 1. **End-to-end browser handoff:** native-host registration installer added; validate Firefox and Chromium-family context menus against a running desktop session.
-2. **Automatic detection:** observe documented browser-visible media signals and pass candidate URLs to the capture engine without collecting secrets unnecessarily.
+2. **Detection improvements:** expand beyond on-demand resource timing to reliable request observation where permissions and browser APIs allow, while keeping detection user-controlled.
 3. **Media capture:** inspect browser-observed media requests and HLS/DASH manifests; expose quality choices only when verified. DASH template-based segment downloading remains future work.
 4. **Reliability and polish:** configurable destinations, richer transfer controls, diagnostics with secrets redacted, packaging, and broader browser validation.
 
