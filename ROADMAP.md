@@ -1,6 +1,6 @@
 # MediaGrab Roadmap
 
-MediaGrab is in its planning stage. Milestones are ordered to validate the core download workflow before investing heavily in advanced media extraction.
+MediaGrab has an initial GTK4/libadwaita queue and HTTP(S) download core. Milestones are ordered to validate reliable transfers before investing heavily in advanced media extraction.
 
 ## Phase 1 — Repository foundation
 
@@ -11,19 +11,19 @@ MediaGrab is in its planning stage. Milestones are ordered to validate the core 
 
 ## Phase 2 — Native desktop shell
 
-- [ ] Build the initial GTK4/libadwaita application window.
-- [ ] Define a download item model and queue states.
-- [ ] Add empty, active, completed, failed, and paused queue views.
-- [ ] Make cancellation and retry behavior explicit.
+- [x] Build the initial GTK4/libadwaita application window.
+- [x] Implement queue rows and queued, active, completed, failed, cancelled, and interrupted states.
+- [ ] Add a paused queue state and pause/resume controls.
 - [ ] Verify responsiveness with a large queue.
 
 ## Phase 3 — Download core
 
-- [ ] Implement ordinary HTTP(S) downloads.
-- [ ] Report progress, speed, and estimated remaining time where available.
-- [ ] Support pause/resume when the server and transfer method permit it.
-- [ ] Handle retries, timeouts, redirects, and partial files safely.
-- [ ] Add tests using a local test HTTP server.
+- [x] Implement ordinary HTTP(S) downloads.
+- [x] Report progress and transfer speed.
+- [ ] Report estimated remaining time where available.
+- [ ] Support user-controlled pause/resume.
+- [x] Handle retries, timeouts, redirects, and partial files with validator-aware resume.
+- [x] Add tests using a local test HTTP server.
 
 ## Phase 4 — Firefox integration
 
