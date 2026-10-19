@@ -153,6 +153,10 @@ class DownloadTask:
                         raise DownloadError(f"Unexpected HTTP status: {status}")
 
                     append = offset > 0 and status == 206
+                    if status == 206 and offset == 0:
+                        raise DownloadError(
+                            "Server returned HTTP 206 without a requested byte range"
+                        )
                     if offset and status == 200:
                         # If-Range failed or Range was ignored: discard old bytes.
                         offset = 0
