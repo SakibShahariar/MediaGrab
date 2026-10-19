@@ -14,22 +14,13 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from mediagrab.downloader import DownloadError, DownloadProgress, DownloadTask
-from mediagrab.capture import MediaKind, classify_media
-from mediagrab.media_stream import MediaStreamTask
+from mediagrab.task_factory import create_download_task
 from mediagrab.queue_store import load_queue, save_queue
 
 
 APP_ID = "io.github.SakibShahariar.MediaGrab"
 DOWNLOAD_DIRECTORY = Path.home() / "Downloads"
 MAX_CONCURRENT_DOWNLOADS = 3
-
-
-def create_download_task(url: str, destination: Path):
-    """Choose the direct HTTP downloader or the FFmpeg stream adapter."""
-    kind = classify_media(url)
-    if kind in {MediaKind.HLS, MediaKind.DASH}:
-        return MediaStreamTask(url, destination)
-    return DownloadTask(url, destination)
 
 
 def format_bytes(value: float) -> str:
@@ -284,7 +275,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             self.toast_overlay.add_toast(Adw.Toast.new("URLs with embedded credentials are not accepted."))
             return False
         try:
-            task = DownloadTask(url, DOWNLOAD_DIRECTORY)
+            task = create_download_task(url, DOWNLOAD_DIRECTORY)
         except ValueError as exc:
             self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
             return False
