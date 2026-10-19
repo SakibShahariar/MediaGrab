@@ -48,8 +48,9 @@ def filename_from_url(url: str) -> str:
 class DownloadTask:
     """Download one HTTP(S) resource to a destination directory.
 
-    Cancellation is cooperative. A partial file is retained as a .part file.
-    This version intentionally starts fresh rather than resuming automatically.
+    Cancellation is cooperative. Interrupted transfers retain a .part file.
+    Calling run() again on a new task resumes when the server supports byte ranges;
+    if the server ignores Range, the partial is safely restarted from byte zero.
     """
 
     def __init__(
@@ -105,20 +106,16 @@ class DownloadTask:
         if target.exists():
             self._set_state("failed")
             raise DownloadError(f"Destination already exists: {target}")
-        if partial.exists():
-            self._set_state("failed")
-            raise DownloadError(
-                f"Partial file already exists: {partial}; move or remove it before retrying"
-            )
+        offset = partial.stat().st_size if partial.exists() else 0
 
         if self._cancel.is_set():
             self._set_state("cancelled")
             raise DownloadError("Download cancelled before start")
 
-        request = urllib.request.Request(
-            self.url,
-            headers={"User-Agent": self.user_agent, "Accept-Encoding": "identity"},
-        )
+        headers = {"User-Agent": self.user_agent, "Accept-Encoding": "identity"}
+        if offset:
+            headers["Range"] = f"bytes={offset}-"
+        request = urllib.request.Request(self.url, headers=headers)
         started = time.monotonic()
         received = 0
         total: int | None = None
@@ -130,16 +127,36 @@ class DownloadTask:
                 if status < 200 or status >= 300:
                     raise DownloadError(f"Unexpected HTTP status: {status}")
 
+                append = offset > 0 and status == 206
+                if offset and status == 200:
+                    # Server ignored Range: restart rather than appending duplicate bytes.
+                    offset = 0
+                elif offset and status != 206:
+                    raise DownloadError(f"Server cannot resume this download (HTTP {status})")
+
+                content_range = response.headers.get("Content-Range", "")
+                if append:
+                    expected_prefix = f"bytes {offset}-"
+                    if not content_range.startswith(expected_prefix):
+                        raise DownloadError("Server returned an invalid Content-Range for resume")
+
                 content_length = response.headers.get("Content-Length")
+                response_length: int | None = None
                 if content_length:
                     try:
-                        total = int(content_length)
+                        response_length = int(content_length)
                     except ValueError:
-                        total = None
-                    if total is not None and total < 0:
-                        total = None
+                        response_length = None
+                    if response_length is not None and response_length < 0:
+                        response_length = None
+                if append and response_length is not None:
+                    total = offset + response_length
+                else:
+                    total = response_length
 
-                with partial.open("xb") as output:
+                mode = "ab" if append else "wb"
+                received = offset if append else 0
+                with partial.open(mode) as output:
                     while True:
                         if self._cancel.is_set():
                             self._set_state("cancelled")
