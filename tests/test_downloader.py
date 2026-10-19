@@ -485,3 +485,33 @@ def test_rejects_partial_response_without_requested_range(tmp_path: Path) -> Non
         httpd.shutdown()
         thread.join(timeout=2)
         httpd.server_close()
+
+
+def test_rejects_invalid_content_length(tmp_path: Path) -> None:
+    class InvalidLengthHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            self.send_response(200)
+            self.send_header("Content-Length", "not-a-number")
+            self.end_headers()
+            self.wfile.write(PAYLOAD)
+
+        def log_message(self, _format: str, *_args: object) -> None:
+            pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), InvalidLengthHandler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        task = DownloadTask(
+            f"http://127.0.0.1:{httpd.server_port}/payload.bin", tmp_path
+        )
+
+        with pytest.raises(DownloadError, match="invalid Content-Length"):
+            task.run()
+
+        assert not (tmp_path / "payload.bin").exists()
+        assert task.state == "failed"
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+        httpd.server_close()
