@@ -70,6 +70,8 @@ class DownloadTask:
             raise ValueError("Only valid HTTP(S) URLs are supported")
         if chunk_size < 1:
             raise ValueError("chunk_size must be positive")
+        if timeout <= 0:
+            raise ValueError("timeout must be positive")
 
         self.url = url
         self.destination = Path(destination)
@@ -183,6 +185,7 @@ class DownloadTask:
                             range_start != offset
                             or range_end < range_start
                             or range_total <= range_end
+                            or (total is not None and range_total != total)
                         ):
                             raise DownloadError(
                                 "Server returned an inconsistent Content-Range for resume"
