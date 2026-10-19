@@ -7,6 +7,7 @@ other access controls and do not fetch resources themselves.
 from __future__ import annotations
 
 import re
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from enum import Enum
 from urllib.parse import urljoin, urlparse
@@ -17,6 +18,19 @@ class MediaKind(str, Enum):
     HLS = "hls"
     DASH = "dash"
     UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True)
+class DASHRepresentation:
+    """DASH representation metadata; url is set only for an explicit BaseURL."""
+
+    id: str | None
+    url: str | None
+    bandwidth: int | None
+    width: int | None
+    height: int | None
+    mime_type: str | None
+    codecs: str | None
 
 
 @dataclass(frozen=True)
@@ -53,6 +67,84 @@ def classify_media(url: str, content_type: str | None = None) -> MediaKind:
     ):
         return MediaKind.DIRECT
     return MediaKind.UNKNOWN
+
+
+
+def _xml_local_name(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1]
+
+
+def _nonnegative_int(value: str | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number >= 0 else None
+
+
+def parse_dash_representations(
+    manifest_url: str, manifest: str
+) -> list[DASHRepresentation]:
+    """Parse DASH representation metadata without downloading media segments.
+
+    Namespace-qualified MPDs and AdaptationSet-inherited MIME/codecs are
+    supported. A representation URL is returned only when that representation
+    declares an explicit BaseURL; template-based streams need a segment engine.
+    """
+    parsed = urlparse(manifest_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("manifest_url must be a valid HTTP(S) URL")
+    try:
+        root = ET.fromstring(manifest)
+    except ET.ParseError as exc:
+        raise ValueError("Invalid DASH XML manifest") from exc
+    if _xml_local_name(root.tag) != "MPD":
+        raise ValueError("Not a DASH MPD manifest")
+
+    def find_base(element: ET.Element, parent: str) -> str:
+        for child in element:
+            if _xml_local_name(child.tag) == "BaseURL" and child.text and child.text.strip():
+                return urljoin(parent, child.text.strip())
+        return parent
+
+    mpd_base = find_base(root, manifest_url)
+    result: list[DASHRepresentation] = []
+    for period in root:
+        if _xml_local_name(period.tag) != "Period":
+            continue
+        period_base = find_base(period, mpd_base)
+        for adaptation in period:
+            if _xml_local_name(adaptation.tag) != "AdaptationSet":
+                continue
+            adaptation_base = find_base(adaptation, period_base)
+            for representation in adaptation:
+                if _xml_local_name(representation.tag) != "Representation":
+                    continue
+                own_base = next(
+                    (
+                        child.text.strip()
+                        for child in representation
+                        if _xml_local_name(child.tag) == "BaseURL"
+                        and child.text
+                        and child.text.strip()
+                    ),
+                    None,
+                )
+                attrs = representation.attrib
+                result.append(
+                    DASHRepresentation(
+                        id=attrs.get("id"),
+                        url=urljoin(adaptation_base, own_base) if own_base else None,
+                        bandwidth=_nonnegative_int(attrs.get("bandwidth")),
+                        width=_nonnegative_int(attrs.get("width")),
+                        height=_nonnegative_int(attrs.get("height")),
+                        mime_type=attrs.get("mimeType") or adaptation.attrib.get("mimeType"),
+                        codecs=attrs.get("codecs") or adaptation.attrib.get("codecs"),
+                    )
+                )
+    return result
 
 
 def _parse_attribute_list(value: str) -> dict[str, str]:
