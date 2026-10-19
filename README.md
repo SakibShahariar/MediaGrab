@@ -2,7 +2,7 @@
 
 A native Linux download manager focused on reliable browser-to-desktop media capture, inspired by the workflow of Internet Download Manager (IDM).
 
-> **Status:** Early planning and architecture stage. Media capture and download functionality are not implemented yet.
+> **Status:** Early implementation. The GTK4/libadwaita queue and HTTP(S) download core are implemented with automated tests. Browser integration and media capture remain unimplemented.
 
 ## Goals
 
@@ -35,14 +35,20 @@ GTK4 / libadwaita desktop app
 
 The extension will detect candidate media using documented browser APIs. The native host will validate and pass structured messages to the local application. The capture engine will determine which downloads are actually feasible; not every website or protected stream can be captured.
 
-## Planned milestones
+## Current implementation
 
-1. **Foundation:** repository structure, design notes, development conventions, and tests.
-2. **Desktop shell:** GTK4/libadwaita window, queue model, and basic settings.
-3. **Download core:** ordinary HTTP(S) downloads, progress, cancellation, retries, and safe filenames.
-4. **Browser bridge:** Firefox WebExtension and native-messaging host.
-5. **Media capture:** inspect candidate requests and media manifests; support formats incrementally.
-6. **Polish:** error handling, performance checks, packaging, documentation, and later Chromium support.
+- GTK4/libadwaita download queue with progress, cancellation, retry, and a three-download concurrency limit.
+- HTTP(S) downloads with safe filenames, progress reporting, partial files, cooperative cancellation, and atomic finalization.
+- Validator-aware resume using ETag or Last-Modified, including bounded byte-range responses and safe restart when range continuation is unavailable.
+- Crash-resistant persistence for unfinished queue entries; interrupted items can be retried after restart.
+- Automated tests using local HTTP servers, run by GitHub Actions on Python 3.11–3.14.
+
+## Next milestones
+
+1. **Browser bridge:** Firefox WebExtension and validated native-messaging host.
+2. **Manual handoff:** send a selected link from Firefox to the desktop app before implementing automatic detection.
+3. **Media capture:** inspect browser-observed media requests and HLS/DASH manifests; expose quality choices only when verified.
+4. **Reliability and polish:** configurable destinations, richer transfer controls, diagnostics with secrets redacted, packaging, and later Chromium support.
 
 ## Development principles
 
@@ -51,7 +57,7 @@ The extension will detect candidate media using documented browser APIs. The nat
 - Be explicit about unsupported sites and protected content instead of promising universal capture.
 - Keep browser detection, extraction, downloading, and UI responsibilities separated.
 
-## Project layout (planned)
+## Project layout
 
 - `app/` — GTK4/libadwaita interface
 - `browser-extension/` — browser extension
