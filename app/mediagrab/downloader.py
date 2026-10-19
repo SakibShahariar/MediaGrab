@@ -6,6 +6,8 @@ in a worker thread and marshal progress callbacks back to the main loop.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import threading
@@ -103,11 +105,27 @@ class DownloadTask:
         filename = filename_from_url(self.url)
         target = self.destination / filename
         partial = self.destination / f"{filename}.part"
+        metadata = partial.with_name(f"{partial.name}.json")
 
         if target.exists():
             self._set_state("failed")
             raise DownloadError(f"Destination already exists: {target}")
         offset = partial.stat().st_size if partial.exists() else 0
+        validator: tuple[str, str] | None = None
+        if offset and metadata.exists():
+            try:
+                saved = json.loads(metadata.read_text(encoding="utf-8"))
+                if saved.get("url_sha256") == hashlib.sha256(self.url.encode()).hexdigest():
+                    if saved.get("etag"):
+                        validator = ("If-Range", saved["etag"])
+                    elif saved.get("last_modified"):
+                        validator = ("If-Range", saved["last_modified"])
+                else:
+                    # A same-named URL may point to a different resource.
+                    offset = 0
+            except (OSError, ValueError, TypeError):
+                # Unreadable metadata cannot safely validate the partial.
+                offset = 0
 
         if self._cancel.is_set():
             self._set_state("cancelled")
@@ -116,6 +134,8 @@ class DownloadTask:
         headers = {"User-Agent": self.user_agent, "Accept-Encoding": "identity"}
         if offset:
             headers["Range"] = f"bytes={offset}-"
+            if validator is not None:
+                headers[validator[0]] = validator[1]
         request = urllib.request.Request(self.url, headers=headers)
         started = time.monotonic()
         received = 0
@@ -149,6 +169,26 @@ class DownloadTask:
                     ):
                         raise DownloadError("Server returned an inconsistent Content-Range for resume")
 
+                etag = response.headers.get("ETag")
+                last_modified = response.headers.get("Last-Modified")
+                if etag or last_modified:
+                    metadata_tmp = metadata.with_name(f"{metadata.name}.tmp")
+                    try:
+                        metadata_tmp.write_text(
+                            json.dumps({
+                                "url_sha256": hashlib.sha256(self.url.encode()).hexdigest(),
+                                "etag": etag,
+                                "last_modified": last_modified,
+                            }),
+                            encoding="utf-8",
+                        )
+                        os.replace(metadata_tmp, metadata)
+                    except OSError:
+                        try:
+                            metadata_tmp.unlink(missing_ok=True)
+                        except OSError:
+                            pass
+                        # A failed metadata write must not fail an otherwise valid transfer.
                 content_length = response.headers.get("Content-Length")
                 response_length: int | None = None
                 if content_length:
@@ -203,6 +243,7 @@ class DownloadTask:
                 )
 
             os.replace(partial, target)
+            metadata.unlink(missing_ok=True)
             self._set_state("completed")
             if on_progress is not None:
                 elapsed = max(time.monotonic() - started, 0.001)
@@ -230,6 +271,7 @@ class DownloadTask:
                             self._set_state("cancelled")
                             raise DownloadError("Download cancelled")
                         os.replace(partial, target)
+                        metadata.unlink(missing_ok=True)
                         self._set_state("completed")
                         if on_progress is not None:
                             size = target.stat().st_size
