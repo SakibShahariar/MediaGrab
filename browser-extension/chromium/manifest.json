@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "MediaGrab — Send to desktop",
+  "version": "0.1.0",
+  "description": "Send a selected HTTP(S) link or the current page to MediaGrab.",
+  "permissions": ["contextMenus", "nativeMessaging"],
+  "background": { "service_worker": "background.js" }
+}
