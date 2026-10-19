@@ -217,6 +217,37 @@ class DownloadTask:
             return target
 
         except urllib.error.HTTPError as exc:
+            if exc.code == 416 and offset > 0 and partial.exists():
+                # A server may reject Range when the partial is already complete.
+                # Promote it only when the server reports a total matching its size.
+                match = re.fullmatch(
+                    r"bytes \*/(\d+)", exc.headers.get("Content-Range", "")
+                )
+                if match is not None and partial.stat().st_size == int(match.group(1)):
+                    try:
+                        exc.close()
+                        if self._cancel.is_set():
+                            self._set_state("cancelled")
+                            raise DownloadError("Download cancelled")
+                        os.replace(partial, target)
+                        self._set_state("completed")
+                        if on_progress is not None:
+                            size = target.stat().st_size
+                            elapsed = max(time.monotonic() - started, 0.001)
+                            on_progress(
+                                DownloadProgress(
+                                    received=size,
+                                    total=size,
+                                    bytes_per_second=size / elapsed,
+                                    state="completed",
+                                )
+                            )
+                        return target
+                    except OSError as file_error:
+                        self._set_state("failed")
+                        raise DownloadError(
+                            f"Could not finalize completed partial download: {file_error}"
+                        ) from file_error
             self._set_state("failed")
             raise DownloadError(f"HTTP error {exc.code}: {exc.reason}") from exc
         except urllib.error.URLError as exc:
