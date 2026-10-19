@@ -14,6 +14,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from mediagrab.downloader import DownloadError, DownloadProgress, DownloadTask
+from mediagrab.queue_store import load_queue, save_queue
 
 
 APP_ID = "io.github.SakibShahariar.MediaGrab"
@@ -113,10 +114,10 @@ class DownloadRow(Adw.ActionRow):
         self.status_label.set_text(state)
         self.cancel_button.set_sensitive(False)
         self.cancel_button.set_visible(False)
-        self.retry_button.set_visible(state in {"Failed", "Cancelled"})
+        self.retry_button.set_visible(state in {"Failed", "Cancelled", "Interrupted"})
         if state == "Failed" and message:
             self.set_subtitle(f"{self._source_url} · {message}")
-        elif state == "Cancelled":
+        elif state in {"Cancelled", "Interrupted"}:
             self.set_subtitle(f"{self._source_url} · Partial data may remain in Downloads")
 
 
@@ -191,6 +192,39 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         footer.add_css_class("caption")
         footer.set_xalign(0)
         content.append(footer)
+        self._restore_queue()
+
+    def _restore_queue(self) -> None:
+        for entry in load_queue():
+            url = entry["url"]
+            try:
+                task = DownloadTask(url, DOWNLOAD_DIRECTORY)
+            except ValueError:
+                continue
+            row = DownloadRow(self, url, task)
+            row.finish("Interrupted")
+            self._rows.append(row)
+            self.list_box.append(row)
+        self._update_count()
+        self._persist_queue()
+
+    def _update_count(self) -> None:
+        count = len(self._rows)
+        self.count_label.set_text(f"{count} item" + ("" if count == 1 else "s"))
+
+    def _persist_queue(self) -> None:
+        # Completed items are history only; unfinished items are restored as retryable.
+        entries = [
+            {"url": row.url}
+            for row in self._rows
+            if row.status_label.get_text() != "Completed"
+        ]
+        try:
+            save_queue(entries)
+        except OSError as exc:
+            self.toast_overlay.add_toast(
+                Adw.Toast.new(f"Could not save queue state: {exc}")
+            )
 
     def _make_empty_state(self) -> Gtk.Widget:
         page = Adw.StatusPage()
@@ -237,9 +271,8 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         row = DownloadRow(self, url, task)
         self._rows.append(row)
         self.list_box.append(row)
-        self.count_label.set_text(
-            f"{len(self._rows)} item" + ("" if len(self._rows) == 1 else "s")
-        )
+        self._update_count()
+        self._persist_queue()
         self._enqueue_download(row)
         self.toast_overlay.add_toast(Adw.Toast.new("Added to download queue."))
 
@@ -270,6 +303,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         if row in self._pending_downloads:
             self._pending_downloads.remove(row)
             row.finish("Cancelled")
+            self._persist_queue()
             self.toast_overlay.add_toast(Adw.Toast.new("Queued download cancelled."))
             return
         if row in self._active_downloads:
@@ -286,6 +320,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
             return
         row.prepare_retry(task)
+        self._persist_queue()
         self._enqueue_download(row)
         self.toast_overlay.add_toast(Adw.Toast.new("Retry added to queue."))
 
@@ -316,6 +351,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             self.toast_overlay.add_toast(Adw.Toast.new(f"Download failed: {detail}"))
         elif state == "Cancelled":
             self.toast_overlay.add_toast(Adw.Toast.new("Download cancelled."))
+        self._persist_queue()
         self._start_next_downloads()
         return GLib.SOURCE_REMOVE
 
