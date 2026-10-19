@@ -41,7 +41,8 @@ The extension will detect candidate media using documented browser APIs. The nat
 - HTTP(S) downloads with safe filenames, progress reporting, partial files, cooperative cancellation, and atomic finalization.
 - Validator-aware resume using ETag or Last-Modified, including bounded byte-range responses and safe restart when range continuation is unavailable.
 - Crash-resistant persistence for unfinished queue entries; interrupted items can be retried after restart.
-- Automated tests using local HTTP servers, run by GitHub Actions on Python 3.11–3.14.
+- Initial media inspection helpers for direct media, HLS, and DASH classification, plus HLS master-playlist variant parsing.
+- Automated tests for transfers and media parsing, run by GitHub Actions on Python 3.11–3.14.
 
 ## Next milestones
 
