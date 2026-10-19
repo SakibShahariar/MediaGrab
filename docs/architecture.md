@@ -2,9 +2,9 @@
 
 ## Components
 
-### 1. Browser WebExtension
+### 1. Browser extensions (Firefox and Chromium family)
 
-Responsible for observing browser-visible download and media signals and presenting a user-controlled handoff to MediaGrab. It should use documented browser APIs and avoid site-specific assumptions unless a site adapter is justified by tests.
+Firefox and Chromium-family extensions should provide the same core features: observe browser-visible download/media signals and present a user-controlled handoff to MediaGrab. Share common logic and the versioned message schema; keep browser-specific API adapters thin. Support Brave, Vivaldi, and other Chromium-derived browsers when their extension APIs and native-host registration are compatible. Avoid site-specific assumptions unless an adapter is justified by tests.
 
 The extension should not try to implement the full download engine. Its role is detection, context gathering, and user interaction.
 
@@ -35,7 +35,7 @@ Responsible for the queue, download details, settings, notifications, and user d
 
 ## Suggested data flow
 
-1. The extension observes a candidate resource or the user chooses a browser download.
+1. A supported browser extension observes a candidate resource or the user chooses a browser download.
 2. The extension sends a versioned message through native messaging.
 3. The native host validates the message.
 4. MediaGrab inspects the candidate and determines whether it is a direct file or a supported stream.
@@ -45,7 +45,7 @@ Responsible for the queue, download details, settings, notifications, and user d
 
 ## Initial implementation order
 
-Start with the download core and a small desktop queue. Add a manual browser-to-app handoff before automatic media detection. This validates the end-to-end architecture while keeping browser detection and extraction as separate, testable steps.
+Start with the download core and a small desktop queue. Define the shared native-messaging protocol, then provide manual browser-to-app handoff in Firefox and Chromium-family browsers before automatic media detection. This validates the end-to-end architecture while keeping browser-specific APIs and extraction logic separate and testable.
 
 ## Open design decisions
 
@@ -53,4 +53,4 @@ Start with the download core and a small desktop queue. Add a manual browser-to-
 - Which HTTP transfer library best supports cancellation, streaming, and robust tests.
 - How queue state should be persisted across restarts.
 - How to represent HLS/DASH variants and associated audio tracks.
-- How to package and register native messaging on each target distribution.
+- How to package and register native messaging for Firefox and each Chromium-family browser on each target distribution.
