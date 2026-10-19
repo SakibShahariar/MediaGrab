@@ -25,13 +25,15 @@ MediaGrab has an initial GTK4/libadwaita queue and HTTP(S) download core. Milest
 - [x] Handle retries, timeouts, redirects, and partial files with validator-aware resume.
 - [x] Add tests using a local test HTTP server.
 
-## Phase 4 — Firefox integration
+## Phase 4 — Cross-browser integration
 
-- [ ] Create a minimal WebExtension using documented APIs.
-- [ ] Add a native-messaging host manifest and bridge.
-- [ ] Validate all messages at the native boundary.
-- [ ] Add a manual “send download to MediaGrab” flow before automatic detection.
-- [ ] Document installation and troubleshooting on Fedora.
+- [ ] Define a versioned, browser-neutral message protocol and validate every message at the native boundary.
+- [ ] Add the shared native-messaging host and per-browser registration templates.
+- [ ] Create a Firefox WebExtension using documented APIs.
+- [ ] Create a Chrome/Chromium WebExtension using documented APIs.
+- [ ] Verify compatibility with Brave, Vivaldi, and other Chromium browsers where host registration permits it.
+- [ ] Add a manual “send download to MediaGrab” flow in each supported browser before automatic detection.
+- [ ] Document installation and troubleshooting for each supported browser on Fedora.
 
 ## Phase 5 — Media capture
 
@@ -50,7 +52,7 @@ MediaGrab has an initial GTK4/libadwaita queue and HTTP(S) download core. Milest
 - [ ] Test interruption, app restart, and queue recovery.
 - [ ] Measure CPU and memory use during idle and active capture.
 - [ ] Package for Fedora first; evaluate other distributions afterward.
-- [ ] Consider Chromium support after the Firefox path is stable.
+- [ ] Validate additional Chromium-family browsers and maintain browser-specific installation notes.
 
 ## Acceptance principles
 
