@@ -43,10 +43,10 @@ Tests use a local HTTP server and do not need an external download URL or intern
 ## Current limitations
 
 - The queue is in-memory and is lost when the app exits.
+- At most three downloads run at once; additional downloads wait in the in-memory queue.
 - Files are saved to `~/Downloads`; the destination is not configurable yet.
 - Existing completed filenames are not overwritten.
 - Interrupted downloads keep a `.part` file. A new task can resume it if the server correctly supports HTTP byte ranges. If the server ignores the range request, MediaGrab restarts the partial from byte zero.
 - Cancellation is cooperative and may wait for the current network read to return or time out.
 - Failed or cancelled rows expose a retry/resume action; the download core attempts to continue from an existing `.part` file when the server supports byte ranges.
-- Queue persistence and concurrency limits are not implemented.
 - Browser extension and native messaging integration are not implemented.
