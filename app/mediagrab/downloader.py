@@ -7,6 +7,7 @@ in a worker thread and marshal progress callbacks back to the main loop.
 from __future__ import annotations
 
 import os
+import re
 import threading
 import time
 import urllib.error
@@ -135,10 +136,18 @@ class DownloadTask:
                     raise DownloadError(f"Server cannot resume this download (HTTP {status})")
 
                 content_range = response.headers.get("Content-Range", "")
+                range_match = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", content_range)
                 if append:
-                    expected_prefix = f"bytes {offset}-"
-                    if not content_range.startswith(expected_prefix):
+                    if range_match is None:
                         raise DownloadError("Server returned an invalid Content-Range for resume")
+                    range_start, range_end, range_total = map(int, range_match.groups())
+                    if (
+                        range_start != offset
+                        or range_end < range_start
+                        or range_total <= range_end
+                        or range_end != range_total - 1
+                    ):
+                        raise DownloadError("Server returned an inconsistent Content-Range for resume")
 
                 content_length = response.headers.get("Content-Length")
                 response_length: int | None = None
@@ -149,8 +158,10 @@ class DownloadTask:
                         response_length = None
                     if response_length is not None and response_length < 0:
                         response_length = None
-                if append and response_length is not None:
-                    total = offset + response_length
+                if append:
+                    total = range_total
+                    if response_length is not None and response_length != range_end - range_start + 1:
+                        raise DownloadError("Content-Length does not match Content-Range")
                 else:
                     total = response_length
 
