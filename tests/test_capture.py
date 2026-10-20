@@ -178,3 +178,8 @@ def test_hls_renditions_accept_utf8_bom() -> None:
 @pytest.mark.parametrize("url", ["https://[malformed", "https:///missing-host.mp4"])
 def test_malformed_candidate_urls_are_unknown(url: str) -> None:
     assert classify_media(url) is MediaKind.UNKNOWN
+
+
+def test_hls_rendition_parser_rejects_embedded_credentials() -> None:
+    with pytest.raises(ValueError, match="embedded credentials"):
+        parse_hls_renditions("https://user:secret@cdn.example/master.m3u8", "#EXTM3U")
