@@ -92,15 +92,16 @@ def test_http_error_is_reported(tmp_path: Path, server: str) -> None:
     assert task.state == "failed"
 
 
-def test_existing_destination_is_not_overwritten(tmp_path: Path, server: str) -> None:
+def test_existing_destination_is_preserved_and_download_gets_unique_name(tmp_path: Path, server: str) -> None:
     existing = tmp_path / "payload.bin"
     existing.write_bytes(b"keep me")
     task = DownloadTask(f"{server}/payload.bin", tmp_path)
 
-    with pytest.raises(DownloadError, match="already exists"):
-        task.run()
+    result = task.run()
 
+    assert result.name == "payload (1).bin"
     assert existing.read_bytes() == b"keep me"
+    assert result.read_bytes() == PAYLOAD
 
 
 
@@ -591,3 +592,11 @@ def test_http_protocol_errors_mark_task_failed(tmp_path: Path, monkeypatch) -> N
         task.run()
 
     assert task.state == "failed"
+
+
+def test_unique_filename_skips_existing_output_and_partial(tmp_path: Path) -> None:
+    from mediagrab.downloader import unique_output_path
+
+    (tmp_path / "archive.zip").write_bytes(b"existing")
+    (tmp_path / "archive (1).zip.part").write_bytes(b"partial")
+    assert unique_output_path(tmp_path, "archive.zip").name == "archive (2).zip"

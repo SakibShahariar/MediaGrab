@@ -49,6 +49,22 @@ def filename_from_url(url: str) -> str:
     return candidate or "download"
 
 
+
+def unique_output_path(directory: Path, filename: str) -> Path:
+    """Choose a non-existing output name while preserving resumable base partials."""
+    candidate = directory / filename
+    if not candidate.exists():
+        return candidate
+    stem = candidate.stem
+    extension = candidate.suffix
+    index = 1
+    candidate = directory / f"{stem} ({index}){extension}"
+    while candidate.exists() or candidate.with_name(candidate.name + ".part").exists():
+        index += 1
+        candidate = directory / f"{stem} ({index}){extension}"
+    return candidate
+
+
 class DownloadTask:
     """Download one HTTP(S) resource to a destination directory.
 
@@ -105,12 +121,9 @@ class DownloadTask:
 
         self.destination.mkdir(parents=True, exist_ok=True)
         filename = filename_from_url(self.url)
-        target = self.destination / filename
-        partial = self.destination / f"{filename}.part"
+        target = unique_output_path(self.destination, filename)
+        partial = self.destination / f"{target.name}.part"
         metadata = partial.with_name(f"{partial.name}.json")
-        if target.exists():
-            self._set_state("failed")
-            raise DownloadError(f"Destination already exists: {target}")
 
         offset = partial.stat().st_size if partial.exists() else 0
         validator: tuple[str, str] | None = None

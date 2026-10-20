@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse
 
-from mediagrab.downloader import DownloadError, DownloadProgress, filename_from_url
+from mediagrab.downloader import DownloadError, DownloadProgress, filename_from_url, unique_output_path
 
 ProgressCallback = Callable[[DownloadProgress], None]
 
@@ -124,11 +124,8 @@ class MediaStreamTask:
         self.destination.mkdir(parents=True, exist_ok=True)
         original = filename_from_url(self.url)
         stem = Path(original).stem or "media"
-        target = self.destination / f"{stem}.mkv"
-        temporary = self.destination / f".{stem}.mediagrab-part.mkv"
-        if target.exists():
-            self._set_state("failed")
-            raise DownloadError(f"Destination already exists: {target}")
+        target = unique_output_path(self.destination, f"{stem}.mkv")
+        temporary = self.destination / f".{target.stem}.mediagrab-part.mkv"
         if temporary.exists():
             try:
                 temporary.unlink()

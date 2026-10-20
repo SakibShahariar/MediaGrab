@@ -46,7 +46,7 @@ The inspector fetches only the manifest, caps its response at 4 MiB, uses a fini
 - HLS/DASH downloads require FFmpeg and remux to MKV without re-encoding. DRM is not bypassed.
 - Queue state stores full URLs so retry works; signed query parameters may be sensitive. The queue UI and inspector output redact query/fragment values.
 - Unfinished downloads restore as Interrupted and require manual retry.
-- At most three downloads run at once. Existing completed filenames are not overwritten.
+- At most three downloads run at once. Existing completed files are preserved; repeated names use numbered alternatives such as `file (1).zip`. Filename selection also skips names with an existing partial download.
 - Browser extension behavior and GTK UI integration still need end-to-end desktop testing.
 
 ## Browser handoff prototype

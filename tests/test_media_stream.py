@@ -97,14 +97,21 @@ def test_ffmpeg_failure_does_not_expose_url_or_leave_partial_output(
     assert not (tmp_path / ".master.mediagrab-part.mkv").exists()
 
 
-def test_existing_output_is_never_overwritten(tmp_path: Path) -> None:
+def test_existing_stream_output_is_preserved_and_new_name_is_used(tmp_path: Path, monkeypatch) -> None:
     (tmp_path / "master.mkv").write_bytes(b"keep")
     task = MediaStreamTask(
         "https://cdn.example/master.m3u8", tmp_path, ffmpeg_path="/fake/ffmpeg"
     )
-    with pytest.raises(DownloadError, match="already exists"):
-        task.run()
+    def popen(command, **kwargs):
+        Path(command[-1]).write_bytes(b"new-stream")
+        return FakeProcess("progress=end\\n", 0)
+    monkeypatch.setattr("mediagrab.media_stream.subprocess.Popen", popen)
+
+    result = task.run()
+
+    assert result.name == "master (1).mkv"
     assert (tmp_path / "master.mkv").read_bytes() == b"keep"
+    assert result.read_bytes() == b"new-stream"
 
 
 def test_cancel_before_start(tmp_path: Path) -> None:
