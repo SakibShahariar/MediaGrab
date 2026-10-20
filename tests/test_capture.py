@@ -33,7 +33,7 @@ def test_classifies_media_candidates(url, content_type, expected) -> None:
 def test_parses_hls_variants_and_resolves_relative_urls() -> None:
     playlist = """#EXTM3U
 #EXT-X-VERSION:3
-#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360,CODECS="avc1.4d401e,mp4a.40.2"
+#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360,CODECS="avc1.4d401e,mp4a.40.2",AUDIO="audio",SUBTITLES="subs"
 low/index.m3u8
 #EXT-X-STREAM-INF:BANDWIDTH=2500000,AVERAGE-BANDWIDTH=2200000,RESOLUTION=1280x720
 ../high/index.m3u8
@@ -47,6 +47,8 @@ low/index.m3u8
     assert variants[0].bandwidth == 800000
     assert (variants[0].width, variants[0].height) == (640, 360)
     assert variants[0].codecs == "avc1.4d401e,mp4a.40.2"
+    assert variants[0].audio_group == "audio"
+    assert variants[0].subtitle_group == "subs"
     assert variants[1].url == "https://cdn.example/high/index.m3u8"
     assert variants[1].bandwidth == 2200000
     assert (variants[1].width, variants[1].height) == (1280, 720)

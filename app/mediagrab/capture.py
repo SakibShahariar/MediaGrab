@@ -56,6 +56,8 @@ class HLSVariant:
     width: int | None
     height: int | None
     codecs: str | None
+    audio_group: str | None = None
+    subtitle_group: str | None = None
 
 
 def classify_media(url: str, content_type: str | None = None) -> MediaKind:
@@ -242,6 +244,8 @@ def parse_hls_master_playlist(base_url: str, playlist: str) -> list[HLSVariant]:
                 width=int(resolution.group(1)) if resolution else None,
                 height=int(resolution.group(2)) if resolution else None,
                 codecs=pending.get("CODECS"),
+                audio_group=pending.get("AUDIO"),
+                subtitle_group=pending.get("SUBTITLES"),
             )
         )
         pending = None
