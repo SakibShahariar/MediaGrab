@@ -181,9 +181,13 @@ def _parse_attribute_list(value: str) -> dict[str, str]:
 
 def parse_hls_renditions(base_url: str, playlist: str) -> list[HLSRendition]:
     """Parse alternate AUDIO and SUBTITLES tracks from an HLS master playlist."""
-    parsed = urlparse(base_url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError("base_url must be a valid HTTP(S) URL")
+    try:
+        parsed = urlparse(base_url)
+        hostname = parsed.hostname
+    except ValueError as exc:
+        raise ValueError("base_url must be a valid HTTP(S) URL") from exc
+    if parsed.scheme not in {"http", "https"} or not hostname or parsed.username is not None or parsed.password is not None:
+        raise ValueError("base_url must be a valid HTTP(S) URL without embedded credentials")
     lines = [line.strip() for line in playlist.lstrip("\ufeff").splitlines()]
     if not lines or lines[0] != "#EXTM3U":
         raise ValueError("Not a valid HLS playlist")
