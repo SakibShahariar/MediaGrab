@@ -16,7 +16,8 @@ def default_download_directory() -> Path:
 
 def default_settings_path() -> Path:
     """Return the XDG-compliant per-user configuration path."""
-    config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    configured = os.environ.get("XDG_CONFIG_HOME", "").strip()
+    config_home = Path(configured) if configured else Path.home() / ".config"
     return config_home / "mediagrab" / "settings.json"
 
 
