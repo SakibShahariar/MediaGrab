@@ -191,4 +191,4 @@ def test_explicit_subtitles_replace_default_subtitles_but_keep_video_audio():
         subtitle_url="https://cdn.example/subs/en.m3u8",
     )
     maps = [command[i + 1] for i, value in enumerate(command[:-1]) if value == "-map"]
-    assert maps == ["0:v?", "0:a?", "2:s:0?"]
+    assert maps == ["0:v?", "0:a?", "1:s:0?"]
