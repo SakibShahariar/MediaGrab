@@ -600,3 +600,68 @@ def test_unique_filename_skips_existing_output_and_partial(tmp_path: Path) -> No
     (tmp_path / "archive.zip").write_bytes(b"existing")
     (tmp_path / "archive (1).zip.part").write_bytes(b"partial")
     assert unique_output_path(tmp_path, "archive.zip").name == "archive (2).zip"
+
+
+def test_pause_preserves_partial_and_new_task_resumes(tmp_path: Path) -> None:
+    import hashlib
+    import json
+
+    class SlowRangeHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            offset = 0
+            range_header = self.headers.get("Range")
+            if range_header:
+                offset = int(range_header.removeprefix("bytes=").split("-", 1)[0])
+                body = PAYLOAD[offset:]
+                self.send_response(206)
+                self.send_header("Content-Range", f"bytes {offset}-{len(PAYLOAD) - 1}/{len(PAYLOAD)}")
+            else:
+                body = PAYLOAD
+                self.send_response(200)
+            self.send_header("ETag", '"payload-v1"')
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            for start in range(0, len(body), 512):
+                try:
+                    self.wfile.write(body[start:start + 512])
+                    self.wfile.flush()
+                    threading.Event().wait(0.002)
+                except (BrokenPipeError, ConnectionResetError):
+                    break
+
+        def log_message(self, _format: str, *_args: object) -> None:
+            pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), SlowRangeHandler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        from mediagrab.downloader import DownloadPaused
+
+        url = f"http://127.0.0.1:{httpd.server_port}/payload.bin"
+        task = DownloadTask(url, tmp_path, chunk_size=512, timeout=2)
+        paused = False
+
+        def pause_after_first_chunk(progress) -> None:
+            nonlocal paused
+            if not paused:
+                paused = True
+                task.pause()
+
+        with pytest.raises(DownloadPaused, match="Download paused"):
+            task.run(pause_after_first_chunk)
+
+        partial = tmp_path / "payload.bin.part"
+        metadata = partial.with_name(partial.name + ".json")
+        assert task.state == "paused"
+        assert partial.exists() and 0 < partial.stat().st_size < len(PAYLOAD)
+        assert json.loads(metadata.read_text(encoding="utf-8"))["url_sha256"] == hashlib.sha256(url.encode()).hexdigest()
+
+        result = DownloadTask(url, tmp_path, chunk_size=512).run()
+        assert result.read_bytes() == PAYLOAD
+        assert not partial.exists()
+        assert not metadata.exists()
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+        httpd.server_close()

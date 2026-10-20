@@ -13,7 +13,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
-from mediagrab.downloader import DownloadError, DownloadProgress, DownloadTask
+from mediagrab.downloader import DownloadError, DownloadPaused, DownloadProgress, DownloadTask
 from mediagrab.formatting import format_eta
 from mediagrab.media_inspector import ManifestInspection, inspect_manifest
 from mediagrab.capture import MediaKind, HLSVariant
@@ -81,6 +81,13 @@ class DownloadRow(Adw.ActionRow):
         self.retry_button.connect("clicked", self._on_retry)
         self.add_suffix(self.retry_button)
 
+        self.pause_button = Gtk.Button.new_from_icon_name("media-playback-pause-symbolic")
+        self.pause_button.set_tooltip_text("Pause direct download")
+        self.pause_button.add_css_class("flat")
+        self.pause_button.set_visible(isinstance(task, DownloadTask))
+        self.pause_button.connect("clicked", self._on_pause)
+        self.add_suffix(self.pause_button)
+
         self.cancel_button = Gtk.Button.new_from_icon_name("process-stop-symbolic")
         self.cancel_button.set_tooltip_text("Cancel download")
         self.cancel_button.add_css_class("flat")
@@ -97,11 +104,16 @@ class DownloadRow(Adw.ActionRow):
         self.progress.set_text(None)
         self.cancel_button.set_sensitive(True)
         self.cancel_button.set_visible(True)
+        self.pause_button.set_visible(isinstance(task, DownloadTask))
+        self.pause_button.set_sensitive(True)
         self.retry_button.set_visible(False)
         self.set_subtitle(self._source_url)
 
     def _on_cancel(self, _button: Gtk.Button) -> None:
         self.window.cancel_download(self)
+
+    def _on_pause(self, _button: Gtk.Button) -> None:
+        self.window.pause_download(self)
 
     def update_progress(self, progress: DownloadProgress) -> None:
         if progress.total and progress.total > 0:
@@ -118,6 +130,7 @@ class DownloadRow(Adw.ActionRow):
         if progress.state == "completed":
             self.status_label.set_text("Completed")
             self.cancel_button.set_visible(False)
+            self.pause_button.set_visible(False)
         elif self.is_active:
             self.status_label.set_text(format_bytes(progress.bytes_per_second))
         self.set_subtitle(f"{self._source_url} · {size_text}")
@@ -126,10 +139,12 @@ class DownloadRow(Adw.ActionRow):
         self.status_label.set_text(state)
         self.cancel_button.set_sensitive(False)
         self.cancel_button.set_visible(False)
-        self.retry_button.set_visible(state in {"Failed", "Cancelled", "Interrupted"})
+        self.pause_button.set_sensitive(False)
+        self.pause_button.set_visible(False)
+        self.retry_button.set_visible(state in {"Failed", "Cancelled", "Interrupted", "Paused"})
         if state == "Failed" and message:
             self.set_subtitle(f"{self._source_url} · {message}")
-        elif state in {"Cancelled", "Interrupted"}:
+        elif state in {"Cancelled", "Interrupted", "Paused"}:
             self.set_subtitle(f"{self._source_url} · Partial data may remain in Downloads")
 
 
@@ -524,6 +539,23 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             row.status_label.set_text("Cancelling…")
             row.cancel_button.set_sensitive(False)
 
+    def pause_download(self, row: DownloadRow) -> None:
+        """Pause a queued or active direct HTTP transfer without losing its partial."""
+        if not isinstance(row.task, DownloadTask):
+            self.toast_overlay.add_toast(Adw.Toast.new("Pause is not available for FFmpeg stream downloads."))
+            return
+        if row in self._pending_downloads:
+            self._pending_downloads.remove(row)
+            row.finish("Paused")
+            self._persist_queue()
+            self._start_next_downloads()
+            return
+        if row in self._active_downloads:
+            row.task.pause()
+            row.status_label.set_text("Pausing…")
+            row.pause_button.set_sensitive(False)
+            row.cancel_button.set_sensitive(True)
+
     def retry_download(self, row: DownloadRow) -> None:
         if row in self._pending_downloads or row in self._active_downloads:
             return
@@ -543,6 +575,8 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 lambda progress: GLib.idle_add(row.update_progress, progress)
             )
             GLib.idle_add(self._download_finished, row, "Completed", str(target))
+        except DownloadPaused as exc:
+            GLib.idle_add(self._download_finished, row, "Paused", str(exc))
         except DownloadError as exc:
             state = "Cancelled" if task.state == "cancelled" else "Failed"
             GLib.idle_add(self._download_finished, row, state, str(exc))
@@ -564,6 +598,8 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             self.toast_overlay.add_toast(Adw.Toast.new(f"Download failed: {detail}"))
         elif state == "Cancelled":
             self.toast_overlay.add_toast(Adw.Toast.new("Download cancelled."))
+        elif state == "Paused":
+            self.toast_overlay.add_toast(Adw.Toast.new("Download paused. Resume to continue from the saved partial when supported."))
         self._persist_queue()
         self._start_next_downloads()
         return GLib.SOURCE_REMOVE

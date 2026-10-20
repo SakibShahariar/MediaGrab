@@ -13,7 +13,7 @@ MediaGrab has an initial GTK4/libadwaita queue and HTTP(S) download core. Milest
 
 - [x] Build the initial GTK4/libadwaita application window.
 - [x] Implement queue rows and queued, active, completed, failed, cancelled, and interrupted states.
-- [ ] Add a paused queue state and pause/resume controls.
+- [x] Add a paused queue state and pause/resume controls for direct HTTP(S) downloads.
 - [x] Add a configurable download destination and persist the selection.
 - [ ] Verify responsiveness with a large queue.
 
@@ -22,7 +22,7 @@ MediaGrab has an initial GTK4/libadwaita queue and HTTP(S) download core. Milest
 - [x] Implement ordinary HTTP(S) downloads.
 - [x] Report progress and transfer speed.
 - [x] Report estimated remaining time when total size and transfer speed are available.
-- [ ] Support user-controlled pause/resume.
+- [x] Support cooperative pause/resume for direct HTTP(S) downloads; FFmpeg streams remain non-pausable.
 - [x] Handle retries, timeouts, redirects, and partial files with validator-aware resume.
 - [x] Add tests using a local test HTTP server.
 

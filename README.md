@@ -21,13 +21,13 @@ Browser WebExtension -> Native messaging host -> MediaGrab core
                                              -> GTK4/libadwaita UI
 ```
 
-Not every website or protected stream can be captured. MediaGrab does not bypass DRM or access controls.
+Direct HTTP(S) downloads can be paused and resumed; pause is cooperative and may take up to one network read timeout to take effect. FFmpeg-backed HLS/DASH tasks do not currently support pause. Not every website or protected stream can be captured. MediaGrab does not bypass DRM or access controls.
 
 ## Current implementation
 
 - GTK4/libadwaita queue with progress, cancellation, retry, and three concurrent downloads.
 - Configurable destination folder, persisted settings, queue recovery, and ETA display.
-- HTTP(S) transfers with safe filenames, automatic numbered names for collisions, partial files, validator-aware resume, cancellation, and atomic finalization.
+- HTTP(S) transfers with safe filenames, automatic numbered names for collisions, partial files, validator-aware resume, cooperative pause/resume, cancellation, and atomic finalization.
 - Optional FFmpeg-backed HLS/DASH downloads, collision-safe numbered MKV outputs, stream-copy remuxing, progress and cancellation.
 - Media classification, HLS variant and alternate audio/subtitle parsing, and DASH representation metadata extraction.
 - **Manifest inspection and track selection:** fetches bounded HLS/DASH manifests, lists HLS variants and alternate audio/subtitle playlists, and offers optional external audio/subtitle selection. Selected streams are muxed into MKV with FFmpeg stream copy; track choices survive queue recovery and retry.
@@ -49,7 +49,7 @@ The report shows available HLS resolutions and bitrates, alternate audio/subtitl
 
 1. End-to-end browser handoff validation in Firefox and Chromium.
 2. Improve user-controlled request observation where supported by browser APIs.
-3. Add pause/resume controls, diagnostics, and packaging.
+3. Add structured diagnostics and packaging.
 
 ## Development principles
 

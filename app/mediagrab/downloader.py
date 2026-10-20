@@ -36,6 +36,10 @@ class DownloadError(Exception):
     """Raised when a download cannot be completed."""
 
 
+class DownloadPaused(DownloadError):
+    """Raised when a direct download is paused without discarding its partial data."""
+
+
 def filename_from_url(url: str) -> str:
     """Choose a conservative filename from a URL, with a safe fallback."""
     parsed = urlparse(url)
@@ -96,6 +100,7 @@ class DownloadTask:
         self.chunk_size = chunk_size
         self.user_agent = user_agent
         self._cancel = threading.Event()
+        self._pause = threading.Event()
         self._state_lock = threading.Lock()
         self._state = "queued"
 
@@ -106,6 +111,10 @@ class DownloadTask:
 
     def cancel(self) -> None:
         self._cancel.set()
+
+    def pause(self) -> None:
+        """Request a cooperative pause; the validated partial is kept for resume."""
+        self._pause.set()
 
     def _set_state(self, state: str) -> None:
         with self._state_lock:
@@ -118,6 +127,9 @@ class DownloadTask:
         if self._cancel.is_set():
             self._set_state("cancelled")
             raise DownloadError("Download cancelled before start")
+        if self._pause.is_set():
+            self._set_state("paused")
+            raise DownloadPaused("Download paused before start")
 
         self.destination.mkdir(parents=True, exist_ok=True)
         filename = filename_from_url(self.url)
@@ -260,6 +272,9 @@ class DownloadTask:
                             if self._cancel.is_set():
                                 self._set_state("cancelled")
                                 raise DownloadError("Download cancelled")
+                            if self._pause.is_set():
+                                self._set_state("paused")
+                                raise DownloadPaused("Download paused")
                             chunk = response.read(self.chunk_size)
                             if not chunk:
                                 break
@@ -369,8 +384,11 @@ class DownloadTask:
         except http.client.HTTPException as exc:
             self._set_state("failed")
             raise DownloadError(f"HTTP protocol error: {exc}") from exc
+        except DownloadPaused:
+            self._set_state("paused")
+            raise
         except DownloadError:
-            if self.state != "cancelled":
+            if self.state not in {"cancelled", "paused"}:
                 self._set_state("failed")
             raise
         except OSError as exc:
