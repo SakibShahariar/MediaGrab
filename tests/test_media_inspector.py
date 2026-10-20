@@ -111,3 +111,23 @@ def test_reports_http_errors_without_echoing_url(manifest_server):
 def test_rejects_nonpositive_timeout():
     with pytest.raises(ValueError, match="timeout must be positive"):
         inspect_manifest("https://example.test/manifest.m3u8", timeout=0)
+
+
+def test_inspector_rejects_redirect_with_embedded_credentials(monkeypatch) -> None:
+    from email.message import Message
+    from mediagrab.media_inspector import inspect_manifest
+
+    class Response:
+        headers = Message()
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            return False
+        def geturl(self):
+            return "https://user:secret@cdn.example/master.m3u8"
+        def read(self, _limit):
+            return b"#EXTM3U"
+
+    monkeypatch.setattr("mediagrab.media_inspector.urlopen", lambda *_args, **_kwargs: Response())
+    with pytest.raises(ValueError, match="redirected to an unsupported URL"):
+        inspect_manifest("https://cdn.example/master.m3u8")
