@@ -67,3 +67,9 @@ def test_legacy_entries_load_and_invalid_track_urls_are_dropped(tmp_path: Path) 
         {"url": "https://cdn.example/video.m3u8"},
         {"url": "https://cdn.example/other.m3u8"},
     ]
+
+
+def test_malformed_authority_is_ignored_during_recovery(tmp_path: Path) -> None:
+    path = tmp_path / "queue.json"
+    path.write_text(json.dumps([{"url": "https://[malformed/file.bin"}, {"url": "https://example.test/good.bin"}]), encoding="utf-8")
+    assert load_queue(path) == [{"url": "https://example.test/good.bin"}]
