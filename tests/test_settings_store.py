@@ -38,3 +38,11 @@ def test_unexpected_json_shape_falls_back_to_defaults(tmp_path: Path) -> None:
     path = tmp_path / "settings.json"
     path.write_text(json.dumps(["not", "a", "mapping"]), encoding="utf-8")
     assert load_settings(path)["download_directory"] == str(default_download_directory())
+
+
+def test_default_settings_path_respects_xdg_config_home(monkeypatch, tmp_path: Path) -> None:
+    from mediagrab.settings_store import default_settings_path
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    assert default_settings_path() == tmp_path / "config" / "mediagrab" / "settings.json"
+    monkeypatch.setenv("XDG_CONFIG_HOME", "")
+    assert default_settings_path() == Path.home() / ".config" / "mediagrab" / "settings.json"
