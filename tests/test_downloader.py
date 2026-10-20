@@ -665,3 +665,9 @@ def test_pause_preserves_partial_and_new_task_resumes(tmp_path: Path) -> None:
         httpd.shutdown()
         thread.join(timeout=2)
         httpd.server_close()
+
+
+@pytest.mark.parametrize("url", ["https://user:secret@example.test/file.bin", "https://[malformed/file.bin", "https:///missing-host.bin"])
+def test_rejects_malformed_or_credentialed_urls(tmp_path: Path, url: str) -> None:
+    with pytest.raises(ValueError, match="valid HTTP|embedded credentials"):
+        DownloadTask(url, tmp_path)
