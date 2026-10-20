@@ -222,9 +222,13 @@ def parse_hls_master_playlist(base_url: str, playlist: str) -> list[HLSVariant]:
     Relative variant URLs are resolved against the playlist URL. Media playlists
     without stream declarations return an empty list.
     """
-    parsed = urlparse(base_url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError("base_url must be a valid HTTP(S) URL")
+    try:
+        parsed = urlparse(base_url)
+        hostname = parsed.hostname
+    except ValueError as exc:
+        raise ValueError("base_url must be a valid HTTP(S) URL") from exc
+    if parsed.scheme not in {"http", "https"} or not hostname or parsed.username is not None or parsed.password is not None:
+        raise ValueError("base_url must be a valid HTTP(S) URL without embedded credentials")
 
     lines = [line.strip() for line in playlist.lstrip("\ufeff").splitlines()]
     if not lines or lines[0] != "#EXTM3U":
