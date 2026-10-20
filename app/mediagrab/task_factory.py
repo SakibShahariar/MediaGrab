@@ -22,7 +22,9 @@ def create_download_task(
         raise ValueError("URLs with embedded credentials are not accepted")
     kind = classify_media(url)
     if kind in {MediaKind.HLS, MediaKind.DASH} or audio_url or subtitle_url:
-        return MediaStreamTask(
-            url, destination, audio_url=audio_url, subtitle_url=subtitle_url
-        )
+        if audio_url or subtitle_url:
+            return MediaStreamTask(
+                url, destination, audio_url=audio_url, subtitle_url=subtitle_url
+            )
+        return MediaStreamTask(url, destination)
     return DownloadTask(url, destination)
