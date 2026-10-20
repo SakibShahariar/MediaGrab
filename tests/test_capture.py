@@ -164,3 +164,10 @@ def test_hls_renditions_allow_tracks_without_separate_uri() -> None:
 def test_hls_renditions_reject_invalid_playlist() -> None:
     with pytest.raises(ValueError, match="Not a valid HLS playlist"):
         parse_hls_renditions("https://cdn.example/master.m3u8", "not a playlist")
+
+
+def test_hls_renditions_accept_utf8_bom() -> None:
+    playlist = "\\ufeff#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",NAME=\"English\",URI=\"audio/en.m3u8\"\n"
+    tracks = parse_hls_renditions("https://cdn.example/master.m3u8", playlist)
+    assert len(tracks) == 1
+    assert tracks[0].url == "https://cdn.example/audio/en.m3u8"

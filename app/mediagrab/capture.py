@@ -178,7 +178,7 @@ def parse_hls_renditions(base_url: str, playlist: str) -> list[HLSRendition]:
     parsed = urlparse(base_url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError("base_url must be a valid HTTP(S) URL")
-    lines = [line.strip() for line in playlist.lstrip("\\ufeff").splitlines()]
+    lines = [line.strip() for line in playlist.lstrip("\ufeff").splitlines()]
     if not lines or lines[0] != "#EXTM3U":
         raise ValueError("Not a valid HLS playlist")
 
