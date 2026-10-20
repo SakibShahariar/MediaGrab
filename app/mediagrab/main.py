@@ -60,6 +60,7 @@ class DownloadRow(Adw.ActionRow):
         self.task = task
         self.is_active = False
         self._source_url = redact_url(url)
+        self._search_text = f"{title} {url}".casefold()
         self.set_activatable(False)
         self.add_prefix(Gtk.Image.new_from_icon_name("folder-download-symbolic"))
 
@@ -192,6 +193,19 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         self.count_label.add_css_class("dim-label")
         heading.append(self.count_label)
 
+        self.clear_completed_button = Gtk.Button(label="Clear completed")
+        self.clear_completed_button.add_css_class("flat")
+        self.clear_completed_button.set_tooltip_text("Remove completed downloads from this list")
+        self.clear_completed_button.set_sensitive(False)
+        self.clear_completed_button.connect("clicked", self._on_clear_completed)
+        heading.append(self.clear_completed_button)
+
+        self.search_entry = Gtk.SearchEntry()
+        self.search_entry.set_placeholder_text("Search downloads")
+        self.search_entry.set_tooltip_text("Search by filename or source URL")
+        self.search_entry.connect("search-changed", self._on_search_changed)
+        content.append(self.search_entry)
+
         self.list_box = Gtk.ListBox()
         self.list_box.set_selection_mode(Gtk.SelectionMode.NONE)
         self.list_box.add_css_class("boxed-list")
@@ -261,7 +275,28 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
     def _update_count(self) -> None:
         count = len(self._rows)
+        completed = sum(row.status_label.get_text() == "Completed" for row in self._rows)
         self.count_label.set_text(f"{count} item" + ("" if count == 1 else "s"))
+        self.clear_completed_button.set_sensitive(completed > 0)
+
+    def _on_search_changed(self, _entry: Gtk.SearchEntry) -> None:
+        query = self.search_entry.get_text().strip().casefold()
+        for row in self._rows:
+            status = row.status_label.get_text().casefold()
+            row.set_visible(not query or query in row._search_text or query in status)
+
+    def _on_clear_completed(self, _button: Gtk.Button) -> None:
+        completed = [row for row in self._rows if row.status_label.get_text() == "Completed"]
+        if not completed:
+            return
+        for row in completed:
+            self.list_box.remove(row)
+            self._rows.remove(row)
+        self._update_count()
+        self._persist_queue()
+        self.toast_overlay.add_toast(Adw.Toast.new(
+            f"Removed {len(completed)} completed download" + ("" if len(completed) == 1 else "s") + " from the list."
+        ))
 
     def _persist_queue(self) -> None:
         # Completed items are history only; unfinished items are restored as retryable.
