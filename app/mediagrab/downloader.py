@@ -86,9 +86,15 @@ class DownloadTask:
         chunk_size: int = 128 * 1024,
         user_agent: str = "MediaGrab/0.1",
     ) -> None:
-        parsed = urlparse(url)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        try:
+            parsed = urlparse(url)
+            hostname = parsed.hostname
+        except ValueError as exc:
+            raise ValueError("Only valid HTTP(S) URLs are supported") from exc
+        if parsed.scheme not in {"http", "https"} or not hostname:
             raise ValueError("Only valid HTTP(S) URLs are supported")
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("URLs with embedded credentials are not accepted")
         if chunk_size < 1:
             raise ValueError("chunk_size must be positive")
         if timeout <= 0:
