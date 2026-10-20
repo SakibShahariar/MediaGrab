@@ -188,3 +188,8 @@ def test_hls_rendition_parser_rejects_embedded_credentials() -> None:
 def test_hls_master_parser_rejects_embedded_credentials() -> None:
     with pytest.raises(ValueError, match="embedded credentials"):
         parse_hls_master_playlist("https://user:secret@cdn.example/master.m3u8", "#EXTM3U")
+
+
+def test_dash_parser_rejects_embedded_credentials() -> None:
+    with pytest.raises(ValueError, match="embedded credentials"):
+        parse_dash_representations("https://user:secret@cdn.example/manifest.mpd", "<MPD/>")
