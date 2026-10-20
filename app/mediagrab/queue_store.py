@@ -20,8 +20,12 @@ def default_queue_path() -> Path:
 def _valid_http_url(value: Any) -> bool:
     if not isinstance(value, str):
         return False
-    parsed = urlparse(value)
-    return parsed.scheme in {"http", "https"} and bool(parsed.hostname) and not (
+    try:
+        parsed = urlparse(value)
+        hostname = parsed.hostname
+    except ValueError:
+        return False
+    return parsed.scheme in {"http", "https"} and bool(hostname) and not (
         parsed.username is not None or parsed.password is not None
     )
 
