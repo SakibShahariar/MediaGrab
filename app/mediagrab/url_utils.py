@@ -8,4 +8,6 @@ def redact_url(url: str) -> str:
     parsed = urlsplit(url)
     query = "…" if parsed.query else ""
     fragment = "…" if parsed.fragment else ""
-    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, query, fragment))
+    # Userinfo can contain passwords too; keep only the authority after the last @.
+    authority = parsed.netloc.rsplit("@", 1)[-1]
+    return urlunsplit((parsed.scheme, authority, parsed.path, query, fragment))
