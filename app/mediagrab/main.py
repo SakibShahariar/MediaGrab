@@ -15,6 +15,8 @@ from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from mediagrab.downloader import DownloadError, DownloadProgress, DownloadTask
 from mediagrab.formatting import format_eta
+from mediagrab.media_inspector import ManifestInspection, inspect_manifest
+from mediagrab.capture import MediaKind, HLSVariant
 from mediagrab.task_factory import create_download_task
 from mediagrab.queue_store import load_queue, save_queue
 from mediagrab.settings_store import load_settings, save_settings
@@ -290,6 +292,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         entry.set_hexpand(True)
         dialog.set_extra_child(entry)
         dialog.add_response("cancel", "Cancel")
+        dialog.add_response("inspect", "Inspect media…")
         dialog.add_response("add", "Download")
         dialog.set_default_response("add")
         dialog.set_close_response("cancel")
@@ -300,7 +303,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
     def _on_add_response(
         self, _dialog: Adw.AlertDialog, response: str, entry: Gtk.Entry
     ) -> None:
-        if response != "add":
+        if response not in {"add", "inspect"}:
             return
 
         url = entry.get_text().strip()
@@ -309,7 +312,88 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             self.toast_overlay.add_toast(Adw.Toast.new("Enter a valid HTTP(S) URL."))
             return
 
+        if response == "inspect":
+            self.inspect_media_url(url)
+            return
         self.add_download_url(url)
+
+    def inspect_media_url(self, url: str) -> None:
+        """Inspect a manifest off the GTK thread, then offer available HLS qualities."""
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            self.toast_overlay.add_toast(Adw.Toast.new("Enter a valid HTTP(S) URL."))
+            return
+        if parsed.username is not None or parsed.password is not None:
+            self.toast_overlay.add_toast(Adw.Toast.new("URLs with embedded credentials are not accepted."))
+            return
+        self.toast_overlay.add_toast(Adw.Toast.new("Inspecting media manifest…"))
+
+        def worker() -> None:
+            try:
+                result = inspect_manifest(url)
+                GLib.idle_add(self._show_manifest_choices, url, result, None)
+            except (ValueError, OSError) as exc:
+                GLib.idle_add(self._show_manifest_choices, url, None, str(exc))
+
+        threading.Thread(target=worker, daemon=True, name="mediagrab-inspect").start()
+
+    def _show_manifest_choices(self, original_url: str, result: ManifestInspection | None, error: str | None) -> bool:
+        if error or result is None:
+            self.toast_overlay.add_toast(Adw.Toast.new("Could not inspect manifest: " + (error or "unknown error")))
+            return GLib.SOURCE_REMOVE
+
+        choices: list[tuple[str, str]] = [("Use original manifest (FFmpeg chooses streams)", original_url)]
+        if result.kind is MediaKind.HLS:
+            variants = sorted(result.variants, key=lambda item: (item.height or 0, item.bandwidth or 0))
+            for variant in variants:
+                choices.append((self._variant_label(variant), variant.url))
+
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        for side in ("top", "bottom", "start", "end"):
+            getattr(content, "set_margin_" + side)(6)
+        if len(choices) > 1:
+            dropdown = Gtk.DropDown(model=Gtk.StringList.new([label for label, _url in choices]))
+            dropdown.set_selected(0)
+            content.append(Gtk.Label(label="Download choice", xalign=0))
+            content.append(dropdown)
+        else:
+            dropdown = None
+            content.append(Gtk.Label(label="No separate quality variants were declared. The original manifest will be queued.", wrap=True))
+
+        details = ["Type: " + result.kind.value.upper()]
+        if result.kind is MediaKind.HLS:
+            audio_count = sum(item.kind == "audio" for item in result.renditions)
+            subtitle_count = sum(item.kind == "subtitles" for item in result.renditions)
+            details.append("Declared alternate tracks: " + str(audio_count) + " audio, " + str(subtitle_count) + " subtitle")
+        elif result.representations:
+            details.append("DASH representations declared: " + str(len(result.representations)))
+        content.append(Gtk.Label(label="\n".join(details), xalign=0, wrap=True))
+        content.append(Gtk.Label(label="Manifest metadata is not a guarantee of availability. Alternate HLS audio/subtitle tracks may require the original manifest.", xalign=0, wrap=True))
+
+        dialog = Adw.AlertDialog(heading="Media choices", body="Choose a stream to add to the download queue.")
+        dialog.set_extra_child(content)
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("download", "Add to queue")
+        dialog.set_default_response("download")
+        dialog.set_close_response("cancel")
+        dialog.set_response_appearance("download", Adw.ResponseAppearance.SUGGESTED)
+
+        def response_cb(_dialog: Adw.AlertDialog, response: str) -> None:
+            if response == "download":
+                index = dropdown.get_selected() if dropdown is not None else 0
+                index = min(index, len(choices) - 1)
+                self.add_download_url(choices[index][1])
+
+        dialog.connect("response", response_cb)
+        dialog.present(self)
+        return GLib.SOURCE_REMOVE
+
+    @staticmethod
+    def _variant_label(variant: HLSVariant) -> str:
+        resolution = str(variant.width) + "×" + str(variant.height) if variant.width and variant.height else "Unknown resolution"
+        bitrate = " · " + str(round(variant.bandwidth / 1000)) + " kb/s" if variant.bandwidth else ""
+        codecs = " · " + variant.codecs if variant.codecs else ""
+        return resolution + bitrate + codecs
 
     def add_download_url(self, url: str) -> bool:
         """Validate and enqueue a URL from either the UI or browser bridge."""

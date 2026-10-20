@@ -25,6 +25,10 @@ python -m pytest -v
 
 ## Inspect HLS/DASH quality metadata
 
+In the desktop app, choose **Add URL → Inspect media…** to fetch a manifest in a background worker and show its declared HLS video variants. Selecting the original manifest lets FFmpeg handle the source as a whole; selecting a listed HLS variant queues that variant playlist. Alternate audio/subtitle metadata is shown, but independently choosing those tracks is not yet supported by the UI.
+
+
+
 Install the editable package, then run:
 
 ```fish
