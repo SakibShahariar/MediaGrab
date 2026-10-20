@@ -14,6 +14,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from mediagrab.downloader import DownloadError, DownloadProgress, DownloadTask
+from mediagrab.formatting import format_eta
 from mediagrab.task_factory import create_download_task
 from mediagrab.queue_store import load_queue, save_queue
 from mediagrab.settings_store import load_settings, save_settings
@@ -101,6 +102,10 @@ class DownloadRow(Adw.ActionRow):
         if progress.total and progress.total > 0:
             self.progress.set_fraction(min(progress.received / progress.total, 1.0))
             size_text = f"{format_size(progress.received)} / {format_size(progress.total)}"
+            remaining = progress.total - progress.received
+            eta = format_eta(remaining / progress.bytes_per_second) if progress.bytes_per_second > 0 and remaining > 0 else None
+            if eta:
+                size_text = f"{size_text} · {eta}"
         else:
             self.progress.pulse()
             size_text = f"{format_size(progress.received)} received"

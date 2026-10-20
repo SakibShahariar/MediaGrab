@@ -21,7 +21,7 @@ MediaGrab has an initial GTK4/libadwaita queue and HTTP(S) download core. Milest
 
 - [x] Implement ordinary HTTP(S) downloads.
 - [x] Report progress and transfer speed.
-- [ ] Report estimated remaining time where available.
+- [x] Report estimated remaining time when total size and transfer speed are available.
 - [ ] Support user-controlled pause/resume.
 - [x] Handle retries, timeouts, redirects, and partial files with validator-aware resume.
 - [x] Add tests using a local test HTTP server.

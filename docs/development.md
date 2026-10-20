@@ -47,6 +47,7 @@ Tests use a local HTTP server and do not need an external download URL or intern
 - Queue persistence stores the full download URL so a queued item can be retried. Signed query parameters may be written to the per-user queue file; avoid sharing that file and remove sensitive entries when no longer needed. The queue UI redacts query and fragment values. URLs with embedded username/password credentials are rejected when creating or restoring tasks. Browser cookies and authorization headers are not currently collected. Partial transfer data remains in `~/Downloads` as `.part` files.
 - Completed items are not persisted as history; their queue records are removed.
 - At most three downloads run at once; additional downloads wait in the queue.
+- Progress rows estimate remaining time only when a known total size and non-zero measured speed are available; streams without a known total show bytes received instead.
 - The download folder defaults to `~/Downloads`. Use the folder button in the header to choose another location; the selection is saved in `$XDG_CONFIG_HOME/mediagrab/settings.json` (or `~/.config/mediagrab/settings.json`).
 - Existing completed filenames are not overwritten.
 - Interrupted downloads can resume if the server supports HTTP byte ranges. If the server ignores the range request, MediaGrab restarts the partial from byte zero.
