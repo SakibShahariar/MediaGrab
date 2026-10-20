@@ -385,16 +385,25 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 index = dropdown.get_selected() if dropdown is not None else 0
                 index = min(index, len(choices) - 1)
                 chosen_video = choices[index][1]
+                selected_variant = next((item for item in result.variants if item.url == chosen_video), None)
                 audio_url = None
                 subtitle_url = None
                 if audio_dropdown is not None:
                     audio_index = audio_dropdown.get_selected()
                     if audio_index > 0:
-                        audio_url = audio_choices[audio_index - 1].url
+                        selected_audio = audio_choices[audio_index - 1]
+                        if selected_variant is not None and selected_variant.audio_group and selected_audio.group_id != selected_variant.audio_group:
+                            self.toast_overlay.add_toast(Adw.Toast.new("That audio track does not belong to the selected video variant."))
+                            return
+                        audio_url = selected_audio.url
                 if subtitle_dropdown is not None:
                     subtitle_index = subtitle_dropdown.get_selected()
                     if subtitle_index > 0:
-                        subtitle_url = subtitle_choices[subtitle_index - 1].url
+                        selected_subtitle = subtitle_choices[subtitle_index - 1]
+                        if selected_variant is not None and selected_variant.subtitle_group and selected_subtitle.group_id != selected_variant.subtitle_group:
+                            self.toast_overlay.add_toast(Adw.Toast.new("Those subtitles do not belong to the selected video variant."))
+                            return
+                        subtitle_url = selected_subtitle.url
                 self.add_download_url(chosen_video, audio_url=audio_url, subtitle_url=subtitle_url)
 
         audio_choices = [item for item in result.renditions if item.kind == "audio" and item.url]
@@ -403,12 +412,12 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         subtitle_dropdown = None
         if audio_choices:
             content.append(Gtk.Label(label="Alternate audio (optional)", xalign=0))
-            audio_labels = ["Use variant/default audio"] + [(item.name or item.language or "Audio track") + ((" · " + item.language) if item.language else "") for item in audio_choices]
+            audio_labels = ["Use variant/default audio"] + [(item.name or item.language or "Audio track") + ((" · " + item.language) if item.language else "") + ((" · group " + item.group_id) if item.group_id else "") for item in audio_choices]
             audio_dropdown = Gtk.DropDown(model=Gtk.StringList.new(audio_labels))
             content.append(audio_dropdown)
         if subtitle_choices:
             content.append(Gtk.Label(label="Subtitles (optional)", xalign=0))
-            subtitle_labels = ["No extra subtitles"] + [(item.name or item.language or "Subtitle track") + ((" · " + item.language) if item.language else "") for item in subtitle_choices]
+            subtitle_labels = ["No extra subtitles"] + [(item.name or item.language or "Subtitle track") + ((" · " + item.language) if item.language else "") + ((" · group " + item.group_id) if item.group_id else "") for item in subtitle_choices]
             subtitle_dropdown = Gtk.DropDown(model=Gtk.StringList.new(subtitle_labels))
             content.append(subtitle_dropdown)
         dialog.connect("response", response_cb)
