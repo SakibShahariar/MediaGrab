@@ -30,7 +30,7 @@ Not every website or protected stream can be captured. MediaGrab does not bypass
 - HTTP(S) transfers with safe filenames, partial files, validator-aware resume, cancellation, and atomic finalization.
 - Optional FFmpeg-backed HLS/DASH downloads, stream-copy remuxing to MKV, progress and cancellation.
 - Media classification, HLS variant and alternate audio/subtitle parsing, and DASH representation metadata extraction.
-- **New manifest inspector:** fetches bounded HLS/DASH manifest responses, resolves variant/representation metadata, lists alternate HLS tracks, and reports choices without printing signed query strings.
+- **Manifest inspection and track selection:** fetches bounded HLS/DASH manifests, lists HLS variants and alternate audio/subtitle playlists, and offers optional external audio/subtitle selection. Selected streams are muxed into MKV with FFmpeg stream copy; track choices survive queue recovery and retry.
 - Browser popup scans page-visible resource timing, media elements, subtitle tracks, and media-looking links. Handoffs are user-triggered.
 - Automated tests run on Python 3.11–3.14.
 
@@ -43,7 +43,7 @@ mediagrab-inspect 'https://example.test/path/master.m3u8'
 mediagrab-inspect 'https://example.test/path/manifest.mpd' --timeout 20
 ```
 
-The report shows available HLS resolutions and bitrates, alternate audio/subtitle declarations, or DASH representation metadata. This is an inspection tool, not yet the in-app quality picker. Manifest fetches are limited to 4 MiB and use a finite timeout. Query strings are omitted from the report because they may contain signed credentials. Actual downloads still require the original URL and may fail if authentication, DRM, or site-specific behavior is involved.
+The report shows available HLS resolutions and bitrates, alternate audio/subtitle declarations, or DASH representation metadata. In the desktop quality picker, optional external HLS audio and subtitle playlists can be selected and muxed into the resulting MKV when FFmpeg supports those tracks. Manifest fetches are limited to 4 MiB and use a finite timeout. Query strings are omitted from the report because they may contain signed credentials. Actual downloads still require the original URL and may fail if authentication, DRM, or site-specific behavior is involved.
 
 ## Next milestones
 

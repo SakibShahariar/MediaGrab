@@ -44,3 +44,26 @@ def test_non_list_state_returns_empty_queue(tmp_path: Path) -> None:
     path = tmp_path / "queue.json"
     path.write_text(json.dumps({"url": "https://example.test/a"}), encoding="utf-8")
     assert load_queue(path) == []
+
+
+def test_optional_track_urls_survive_save_and_load(tmp_path: Path) -> None:
+    path = tmp_path / "queue.json"
+    entries = [{
+        "url": "https://cdn.example/video.m3u8",
+        "audio_url": "https://cdn.example/audio/en.m3u8",
+        "subtitle_url": "https://cdn.example/subs/en.m3u8",
+    }]
+    save_queue(entries, path)
+    assert load_queue(path) == entries
+
+
+def test_legacy_entries_load_and_invalid_track_urls_are_dropped(tmp_path: Path) -> None:
+    path = tmp_path / "queue.json"
+    path.write_text(json.dumps([
+        {"url": "https://cdn.example/video.m3u8"},
+        {"url": "https://cdn.example/other.m3u8", "audio_url": "file:///etc/passwd", "subtitle_url": "https://user:pass@cdn.example/subs.m3u8"},
+    ]), encoding="utf-8")
+    assert load_queue(path) == [
+        {"url": "https://cdn.example/video.m3u8"},
+        {"url": "https://cdn.example/other.m3u8"},
+    ]

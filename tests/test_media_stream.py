@@ -115,3 +115,51 @@ def test_cancel_before_start(tmp_path: Path) -> None:
     with pytest.raises(DownloadError, match="cancelled before start"):
         task.run()
     assert task.state == "cancelled"
+
+
+def test_build_command_maps_selected_audio_and_subtitles_to_mkv():
+    from mediagrab.media_stream import build_ffmpeg_command
+
+    command = build_ffmpeg_command(
+        "/fake/ffmpeg", "https://cdn.example/video.m3u8", "/tmp/out.mkv",
+        audio_url="https://cdn.example/audio/en.m3u8",
+        subtitle_url="https://cdn.example/subs/en.m3u8",
+    )
+    inputs = [command[i + 1] for i, value in enumerate(command[:-1]) if value == "-i"]
+    assert inputs == [
+        "https://cdn.example/video.m3u8",
+        "https://cdn.example/audio/en.m3u8",
+        "https://cdn.example/subs/en.m3u8",
+    ]
+    assert ["-map", "0"] == command[command.index("-map"):command.index("-map") + 2]
+    assert "1:a:0?" in command
+    assert "2:s:0?" in command
+    assert command[-1] == "/tmp/out.mkv"
+
+
+def test_build_command_rejects_credentials_in_selected_tracks():
+    from mediagrab.media_stream import build_ffmpeg_command
+
+    with pytest.raises(ValueError, match="credentials"):
+        build_ffmpeg_command(
+            "/fake/ffmpeg", "https://cdn.example/video.m3u8", "/tmp/out.mkv",
+            audio_url="https://user:secret@cdn.example/audio.m3u8",
+        )
+
+
+def test_task_keeps_selected_tracks_in_command(tmp_path: Path, monkeypatch):
+    task = MediaStreamTask(
+        "https://cdn.example/video.m3u8", tmp_path,
+        audio_url="https://cdn.example/audio/en.m3u8",
+        subtitle_url="https://cdn.example/subs/en.m3u8",
+        ffmpeg_path="/fake/ffmpeg",
+    )
+    captured = {}
+    def popen(command, **kwargs):
+        captured["command"] = command
+        Path(command[-1]).write_bytes(b"muxed")
+        return FakeProcess("progress=end\n", 0)
+    monkeypatch.setattr("mediagrab.media_stream.subprocess.Popen", popen)
+    task.run()
+    assert "1:a:0?" in captured["command"]
+    assert "2:s:0?" in captured["command"]

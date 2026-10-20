@@ -1,8 +1,4 @@
-"""FFmpeg-backed HLS/DASH download task.
-
-FFmpeg is an optional system dependency. This adapter remuxes the selected stream
-without re-encoding; it does not bypass DRM or site access controls.
-"""
+"""FFmpeg-backed HLS/DASH download task with optional external tracks."""
 from __future__ import annotations
 
 import os
@@ -19,22 +15,75 @@ from mediagrab.downloader import DownloadError, DownloadProgress, filename_from_
 ProgressCallback = Callable[[DownloadProgress], None]
 
 
+def _validate_http_url(url: str, label: str = "URL") -> None:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError(f"{label} must be a valid HTTP(S) URL")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError(f"{label}s with embedded credentials are not accepted")
+
+
+def build_ffmpeg_command(
+    ffmpeg_path: str,
+    video_url: str,
+    temporary_output: str | Path,
+    *,
+    audio_url: str | None = None,
+    subtitle_url: str | None = None,
+) -> list[str]:
+    """Build a stream-copy command; optional tracks are explicit separate inputs."""
+    _validate_http_url(video_url, "Video URL")
+    if audio_url:
+        _validate_http_url(audio_url, "Audio URL")
+    if subtitle_url:
+        _validate_http_url(subtitle_url, "Subtitle URL")
+
+    command = [
+        ffmpeg_path, "-nostdin", "-hide_banner", "-loglevel", "error",
+        "-stats_period", "0.5", "-progress", "pipe:1",
+        "-i", video_url,
+    ]
+    next_input = 1
+    audio_index: int | None = None
+    subtitle_index: int | None = None
+    if audio_url:
+        audio_index = next_input
+        command.extend(["-i", audio_url])
+        next_input += 1
+    if subtitle_url:
+        subtitle_index = next_input
+        command.extend(["-i", subtitle_url])
+
+    # Keep all streams from the chosen video variant (which may contain audio).
+    command.extend(["-map", "0"])
+    if audio_index is not None:
+        command.extend(["-map", f"{audio_index}:a:0?"])
+    if subtitle_index is not None:
+        command.extend(["-map", f"{subtitle_index}:s:0?"])
+    command.extend(["-c", "copy", "-f", "matroska", "-n", str(temporary_output)])
+    return command
+
+
 class MediaStreamTask:
-    """Download an HLS or DASH stream with FFmpeg, with cancellation and safe finalize."""
+    """Download a stream with FFmpeg, optional selected tracks, cancellation and safe finalize."""
 
     def __init__(
         self,
         url: str,
         destination: str | Path,
         *,
+        audio_url: str | None = None,
+        subtitle_url: str | None = None,
         ffmpeg_path: str | None = None,
     ) -> None:
-        parsed = urlparse(url)
-        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-            raise ValueError("Only valid HTTP(S) stream URLs are supported")
-        if parsed.username is not None or parsed.password is not None:
-            raise ValueError("URLs with embedded credentials are not accepted")
+        _validate_http_url(url)
+        if audio_url:
+            _validate_http_url(audio_url, "Audio URL")
+        if subtitle_url:
+            _validate_http_url(subtitle_url, "Subtitle URL")
         self.url = url
+        self.audio_url = audio_url or None
+        self.subtitle_url = subtitle_url or None
         self.destination = Path(destination)
         self.ffmpeg_path = ffmpeg_path or shutil.which("ffmpeg")
         self._cancel = threading.Event()
@@ -77,11 +126,10 @@ class MediaStreamTask:
                 self._set_state("failed")
                 raise DownloadError(f"Could not clear previous incomplete stream output: {exc}") from exc
 
-        command = [
-            self.ffmpeg_path, "-nostdin", "-hide_banner", "-loglevel", "error",
-            "-stats_period", "0.5", "-progress", "pipe:1", "-i", self.url,
-            "-map", "0", "-c", "copy", "-f", "matroska", "-n", str(temporary),
-        ]
+        command = build_ffmpeg_command(
+            self.ffmpeg_path, self.url, temporary,
+            audio_url=self.audio_url, subtitle_url=self.subtitle_url,
+        )
         self._set_state("downloading")
         started = time.monotonic()
         last_bytes = 0

@@ -25,7 +25,7 @@ python -m pytest -v
 
 ## Inspect HLS/DASH quality metadata
 
-In the desktop app, choose **Add URL → Inspect media…** to fetch a manifest in a background worker and show its declared HLS video variants. Selecting the original manifest lets FFmpeg handle the source as a whole; selecting a listed HLS variant queues that variant playlist. Alternate audio/subtitle metadata is shown, but independently choosing those tracks is not yet supported by the UI.
+In the desktop app, choose **Add URL → Inspect media…** to fetch a manifest in a background worker and show its declared HLS video variants. Selecting a listed HLS variant queues that video playlist. Where the master manifest declares external audio/subtitle playlists, the dialog offers optional selectors; FFmpeg opens the chosen inputs and stream-copies the selected audio and subtitle streams into the MKV. These selections are persisted with unfinished queue entries and restored for manual retry. Use tracks belonging to the selected variant’s audio/subtitle groups; not every manifest declares compatible external tracks.
 
 
 
@@ -42,7 +42,7 @@ The inspector fetches only the manifest, caps its response at 4 MiB, uses a fini
 
 - Browser scanning is user-triggered and limited to page-visible resource timing, media elements, subtitle tracks, and media-looking links.
 - Browser cookies and authorization headers are not currently collected; authenticated streams may fail.
-- The manifest inspector is currently a CLI tool. In-app quality and track selection is the next integration step.
+- HLS alternate track selection works for external rendition playlists that FFmpeg can open and mux. Embedded/default tracks remain controlled by FFmpeg; track group compatibility and codec/container support depend on the source manifest.
 - HLS/DASH downloads require FFmpeg and remux to MKV without re-encoding. DRM is not bypassed.
 - Queue state stores full URLs so retry works; signed query parameters may be sensitive. The queue UI and inspector output redact query/fragment values.
 - Unfinished downloads restore as Interrupted and require manual retry.

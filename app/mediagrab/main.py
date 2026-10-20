@@ -49,12 +49,14 @@ def format_size(value: int) -> str:
 class DownloadRow(Adw.ActionRow):
     """One queue item, including progress, cancellation, and retry controls."""
 
-    def __init__(self, window: "MediaGrabWindow", url: str, task: DownloadTask) -> None:
+    def __init__(self, window: "MediaGrabWindow", url: str, task: DownloadTask, *, audio_url: str | None = None, subtitle_url: str | None = None) -> None:
         parsed = urlparse(url)
         title = parsed.path.rsplit("/", 1)[-1] or parsed.netloc or url
         super().__init__(title=title, subtitle=redact_url(url))
         self.window = window
         self.url = url
+        self.audio_url = audio_url
+        self.subtitle_url = subtitle_url
         self.task = task
         self.is_active = False
         self._source_url = redact_url(url)
@@ -247,10 +249,10 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         for entry in load_queue():
             url = entry["url"]
             try:
-                task = create_download_task(url, self.download_directory)
+                task = create_download_task(url, self.download_directory, audio_url=entry.get("audio_url"), subtitle_url=entry.get("subtitle_url"))
             except ValueError:
                 continue
-            row = DownloadRow(self, url, task)
+            row = DownloadRow(self, url, task, audio_url=entry.get("audio_url"), subtitle_url=entry.get("subtitle_url"))
             row.finish("Interrupted")
             self._rows.append(row)
             self.list_box.append(row)
@@ -264,7 +266,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
     def _persist_queue(self) -> None:
         # Completed items are history only; unfinished items are restored as retryable.
         entries = [
-            {"url": row.url}
+            {"url": row.url, **({"audio_url": row.audio_url} if row.audio_url else {}), **({"subtitle_url": row.subtitle_url} if row.subtitle_url else {})}
             for row in self._rows
             if row.status_label.get_text() != "Completed"
         ]
@@ -382,8 +384,33 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             if response == "download":
                 index = dropdown.get_selected() if dropdown is not None else 0
                 index = min(index, len(choices) - 1)
-                self.add_download_url(choices[index][1])
+                chosen_video = choices[index][1]
+                audio_url = None
+                subtitle_url = None
+                if audio_dropdown is not None:
+                    audio_index = audio_dropdown.get_selected()
+                    if audio_index > 0:
+                        audio_url = audio_choices[audio_index - 1].url
+                if subtitle_dropdown is not None:
+                    subtitle_index = subtitle_dropdown.get_selected()
+                    if subtitle_index > 0:
+                        subtitle_url = subtitle_choices[subtitle_index - 1].url
+                self.add_download_url(chosen_video, audio_url=audio_url, subtitle_url=subtitle_url)
 
+        audio_choices = [item for item in result.renditions if item.kind == "audio" and item.url]
+        subtitle_choices = [item for item in result.renditions if item.kind == "subtitles" and item.url]
+        audio_dropdown = None
+        subtitle_dropdown = None
+        if audio_choices:
+            content.append(Gtk.Label(label="Alternate audio (optional)", xalign=0))
+            audio_labels = ["Use variant/default audio"] + [(item.name or item.language or "Audio track") + ((" · " + item.language) if item.language else "") for item in audio_choices]
+            audio_dropdown = Gtk.DropDown(model=Gtk.StringList.new(audio_labels))
+            content.append(audio_dropdown)
+        if subtitle_choices:
+            content.append(Gtk.Label(label="Subtitles (optional)", xalign=0))
+            subtitle_labels = ["No extra subtitles"] + [(item.name or item.language or "Subtitle track") + ((" · " + item.language) if item.language else "") for item in subtitle_choices]
+            subtitle_dropdown = Gtk.DropDown(model=Gtk.StringList.new(subtitle_labels))
+            content.append(subtitle_dropdown)
         dialog.connect("response", response_cb)
         dialog.present(self)
         return GLib.SOURCE_REMOVE
@@ -395,7 +422,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         codecs = " · " + variant.codecs if variant.codecs else ""
         return resolution + bitrate + codecs
 
-    def add_download_url(self, url: str) -> bool:
+    def add_download_url(self, url: str, *, audio_url: str | None = None, subtitle_url: str | None = None) -> bool:
         """Validate and enqueue a URL from either the UI or browser bridge."""
         parsed = urlparse(url)
         if parsed.scheme not in {"http", "https"} or not parsed.hostname:
@@ -405,11 +432,11 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             self.toast_overlay.add_toast(Adw.Toast.new("URLs with embedded credentials are not accepted."))
             return False
         try:
-            task = create_download_task(url, self.download_directory)
+            task = create_download_task(url, self.download_directory, audio_url=audio_url, subtitle_url=subtitle_url)
         except ValueError as exc:
             self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
             return False
-        row = DownloadRow(self, url, task)
+        row = DownloadRow(self, url, task, audio_url=audio_url, subtitle_url=subtitle_url)
         self._rows.append(row)
         self.list_box.append(row)
         self._update_count()
@@ -457,7 +484,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         if row in self._pending_downloads or row in self._active_downloads:
             return
         try:
-            task = create_download_task(row.url, self.download_directory)
+            task = create_download_task(row.url, self.download_directory, audio_url=row.audio_url, subtitle_url=row.subtitle_url)
         except ValueError as exc:
             self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
             return
