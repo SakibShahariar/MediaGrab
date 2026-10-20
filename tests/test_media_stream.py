@@ -131,9 +131,8 @@ def test_build_command_maps_selected_audio_and_subtitles_to_mkv():
         "https://cdn.example/audio/en.m3u8",
         "https://cdn.example/subs/en.m3u8",
     ]
-    assert ["-map", "0"] == command[command.index("-map"):command.index("-map") + 2]
-    assert "1:a:0?" in command
-    assert "2:s:0?" in command
+    maps = [command[i + 1] for i, value in enumerate(command[:-1]) if value == "-map"]
+    assert maps == ["0:v?", "1:a:0?", "2:s:0?"]
     assert command[-1] == "/tmp/out.mkv"
 
 
@@ -163,3 +162,26 @@ def test_task_keeps_selected_tracks_in_command(tmp_path: Path, monkeypatch):
     task.run()
     assert "1:a:0?" in captured["command"]
     assert "2:s:0?" in captured["command"]
+
+
+def test_explicit_audio_replaces_default_audio_but_keeps_video_subtitles():
+    from mediagrab.media_stream import build_ffmpeg_command
+
+    command = build_ffmpeg_command(
+        "/fake/ffmpeg", "https://cdn.example/video.m3u8", "/tmp/out.mkv",
+        audio_url="https://cdn.example/audio/en.m3u8",
+    )
+    maps = [command[i + 1] for i, value in enumerate(command[:-1]) if value == "-map"]
+    assert maps == ["0:v?", "1:a:0?", "0:s?"]
+    assert "0" not in maps
+
+
+def test_explicit_subtitles_replace_default_subtitles_but_keep_video_audio():
+    from mediagrab.media_stream import build_ffmpeg_command
+
+    command = build_ffmpeg_command(
+        "/fake/ffmpeg", "https://cdn.example/video.m3u8", "/tmp/out.mkv",
+        subtitle_url="https://cdn.example/subs/en.m3u8",
+    )
+    maps = [command[i + 1] for i, value in enumerate(command[:-1]) if value == "-map"]
+    assert maps == ["0:v?", "0:a?", "2:s:0?"]

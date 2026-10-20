@@ -48,7 +48,6 @@ The report shows available HLS resolutions and bitrates, alternate audio/subtitl
 ## Next milestones
 
 1. End-to-end browser handoff validation in Firefox and Chromium.
-2. Connect manifest inspection to an in-app quality/track selection dialog.
 3. Improve user-controlled request observation where supported by browser APIs.
 4. Add pause/resume controls, collision-safe simultaneous downloads, diagnostics, and packaging.
 

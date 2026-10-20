@@ -54,12 +54,22 @@ def build_ffmpeg_command(
         subtitle_index = next_input
         command.extend(["-i", subtitle_url])
 
-    # Keep all streams from the chosen video variant (which may contain audio).
-    command.extend(["-map", "0"])
-    if audio_index is not None:
-        command.extend(["-map", f"{audio_index}:a:0?"])
-    if subtitle_index is not None:
-        command.extend(["-map", f"{subtitle_index}:s:0?"])
+    # Explicit selections replace that media type from the video input. Mapping
+    # all of input 0 as well would silently include duplicate/default audio or
+    # subtitle streams alongside the user's selected track.
+    if audio_index is None and subtitle_index is None:
+        command.extend(["-map", "0"])
+    else:
+        command.extend(["-map", "0:v?"])
+        if audio_index is None:
+            command.extend(["-map", "0:a?"])
+        else:
+            command.extend(["-map", f"{audio_index}:a:0?"])
+        if subtitle_index is None:
+            command.extend(["-map", "0:s?"])
+        else:
+            command.extend(["-map", f"{subtitle_index}:s:0?"])
+
     command.extend(["-c", "copy", "-f", "matroska", "-n", str(temporary_output)])
     return command
 
