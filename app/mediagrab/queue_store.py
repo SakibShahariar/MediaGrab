@@ -13,7 +13,8 @@ OPTIONAL_URL_FIELDS = ("audio_url", "subtitle_url")
 
 def default_queue_path() -> Path:
     """Return the per-user state location, respecting XDG_STATE_HOME."""
-    state_home = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
+    configured = os.environ.get("XDG_STATE_HOME", "").strip()
+    state_home = Path(configured) if configured else Path.home() / ".local" / "state"
     return state_home / "mediagrab" / "queue.json"
 
 
