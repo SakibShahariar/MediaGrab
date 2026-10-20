@@ -62,8 +62,12 @@ class HLSVariant:
 
 def classify_media(url: str, content_type: str | None = None) -> MediaKind:
     """Classify a candidate using its URL path and optional response MIME type."""
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+    except ValueError:
+        return MediaKind.UNKNOWN
+    if parsed.scheme not in {"http", "https"} or not hostname:
         return MediaKind.UNKNOWN
 
     mime = (content_type or "").split(";", 1)[0].strip().lower()
