@@ -173,3 +173,8 @@ def test_hls_renditions_accept_utf8_bom() -> None:
     tracks = parse_hls_renditions("https://cdn.example/master.m3u8", playlist)
     assert len(tracks) == 1
     assert tracks[0].url == "https://cdn.example/audio/en.m3u8"
+
+
+@pytest.mark.parametrize("url", ["https://[malformed", "https:///missing-host.mp4"])
+def test_malformed_candidate_urls_are_unknown(url: str) -> None:
+    assert classify_media(url) is MediaKind.UNKNOWN
