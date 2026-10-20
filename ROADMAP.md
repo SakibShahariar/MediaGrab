@@ -5,9 +5,9 @@ MediaGrab has an initial GTK4/libadwaita queue and HTTP(S) download core. Milest
 ## Phase 1 — Repository foundation
 
 - [x] Document goals and planned architecture in README.
-- [ ] Add architecture notes and development conventions.
-- [ ] Establish a minimal Python project and test runner.
-- [ ] Add CI for linting and tests.
+- [x] Add architecture notes and development conventions.
+- [x] Establish a Python project and test runner.
+- [x] Add CI for automated tests across Python 3.11–3.14.
 
 ## Phase 2 — Native desktop shell
 
@@ -34,15 +34,17 @@ MediaGrab has an initial GTK4/libadwaita queue and HTTP(S) download core. Milest
 - [x] Create a Chromium Manifest V3 extension with manual link/page context-menu handoff.
 - [ ] Verify compatibility with Brave, Vivaldi, and other Chromium browsers where host registration permits it.
 - [x] Add a manual “send link/page to MediaGrab” flow in Firefox and Chromium-family extensions (end-to-end browser testing still pending).
-- [ ] Add a tested Fedora installer and browser-specific troubleshooting; development setup is documented, but host registration remains manual.
+- [x] Add a user-level native-host registration installer; end-to-end browser testing remains pending.
 
 ## Phase 5 — Media capture
 
 - [x] Add site-independent URL/MIME classification for direct media, HLS, and DASH candidates.
-- [x] Parse HLS master playlists into variant URLs, bandwidth, resolution, and codec metadata.\n- [x] Parse HLS alternate audio and subtitle tracks, including language and default/forced flags.
+- [x] Parse HLS master playlists into variant URLs, bandwidth, resolution, and codec metadata.
+- [x] Parse HLS alternate audio and subtitle tracks, including language and default/forced flags.
 - [ ] Detect candidate media URLs from supported browser signals.
 - [x] Parse DASH representation metadata, including inherited MIME/codecs and explicit BaseURL values.
-- [x] Add optional FFmpeg-backed HLS/DASH stream downloads with cancellation and safe finalization (real-world site validation still pending).\n- [ ] Validate HLS/DASH behavior against real-world playlist samples and cover advanced DASH segment-template edge cases.
+- [x] Add optional FFmpeg-backed HLS/DASH stream downloads with cancellation and safe finalization (real-world site validation still pending).
+- [ ] Validate HLS/DASH behavior against real-world playlist samples and cover advanced DASH segment-template edge cases.
 - [ ] Inspect available variants and expose quality choices only when known.
 - [ ] Handle relevant request metadata and cookies without logging secrets.
 - [ ] Add site-independent tests and clearly document unsupported cases.

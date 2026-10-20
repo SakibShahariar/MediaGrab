@@ -2,7 +2,7 @@
 
 A native Linux download manager focused on reliable browser-to-desktop media capture, inspired by the workflow of Internet Download Manager (IDM).
 
-> **Status:** Early implementation. The GTK4/libadwaita queue, HTTP(S) download core, media-manifest inspection helpers, and a manual Firefox/Chromium browser-to-desktop handoff prototype are implemented. Automatic background detection remains unfinished. Direct-file downloads work natively; HLS/DASH manifest URLs are now routed to an optional FFmpeg stream adapter.
+> **Status:** Early implementation. The GTK4/libadwaita queue, HTTP(S) download core, media-manifest inspection helpers, and a manual Firefox/Chromium browser-to-desktop handoff prototype are implemented. Automatic background detection remains unfinished. Direct-file downloads work natively; HLS/DASH manifest URLs are routed to an optional FFmpeg stream adapter.
 
 ## Goals
 
@@ -51,10 +51,10 @@ The extension will detect candidate media using documented browser APIs. The nat
 
 ## Next milestones
 
-1. **End-to-end browser handoff:** native-host registration installer added; validate Firefox and Chromium-family context menus against a running desktop session.
+1. **End-to-end browser handoff:** validate Firefox and Chromium-family context menus against a running desktop session.
 2. **Detection improvements:** expand beyond on-demand resource timing to reliable request observation where permissions and browser APIs allow, while keeping detection user-controlled.
 3. **Media capture:** inspect browser-observed media requests and HLS/DASH manifests; expose quality choices only when verified. FFmpeg handles supported HLS/DASH manifests; DASH template-based extraction remains dependent on FFmpeg's support and stream access.
-4. **Reliability and polish:** configurable destinations, richer transfer controls, diagnostics with secrets redacted, packaging, and broader browser validation.
+4. **Reliability and polish:** user-controlled pause/resume, collision-safe simultaneous downloads, diagnostics with secrets redacted, packaging, and broader browser validation.
 
 ## Development principles
 
