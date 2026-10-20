@@ -2,81 +2,75 @@
 
 A native Linux download manager focused on reliable browser-to-desktop media capture, inspired by the workflow of Internet Download Manager (IDM).
 
-> **Status:** Early implementation. The GTK4/libadwaita queue, HTTP(S) download core, media-manifest inspection helpers, and a manual Firefox/Chromium browser-to-desktop handoff prototype are implemented. Automatic background detection remains unfinished. Direct-file downloads work natively; HLS/DASH manifest URLs are routed to an optional FFmpeg stream adapter.
+> **Status:** Early implementation. The GTK4/libadwaita queue, HTTP(S) download core, browser handoff prototype, and HLS/DASH manifest inspection are implemented. Automatic background detection and in-app quality selection remain unfinished. Direct-file downloads work natively; HLS/DASH manifest URLs are routed to an optional FFmpeg stream adapter.
 
 ## Goals
 
 - A polished GTK4/libadwaita desktop experience for GNOME and other Linux desktops.
-- Cross-browser integration: Firefox and Chromium-based browsers, with Brave, Vivaldi, and other compatible browsers supported where their extension and native-messaging APIs permit it.
+- Cross-browser integration: Firefox and Chromium-based browsers, with compatible browsers supported where their extension and native-messaging APIs permit it.
 - Detect downloadable media and offer clear choices for available streams and qualities where technically possible.
-- Hand downloads from the browser to the desktop app through a versioned native-messaging bridge (manual context-menu handoff prototype now exists).
-- Handle authenticated media carefully, using only browser-session information that the user is authorized to access.
+- Hand downloads from the browser to the desktop app through a versioned native-messaging bridge.
 - Keep the application modular, testable, and mindful of resource use.
 
 ## Planned architecture
 
 ```text
-Browser WebExtension
-        |
-        | browser APIs and native messaging
-        v
-Native messaging host
-        |
-        v
-MediaGrab core / capture engine
-        |
-        +---- media and stream inspection
-        +---- download queue and retry policy
-        +---- destination and file management
-        |
-        v
-GTK4 / libadwaita desktop app
+Browser WebExtension -> Native messaging host -> MediaGrab core
+                                             -> manifest inspection
+                                             -> download queue
+                                             -> GTK4/libadwaita UI
 ```
 
-The extension will detect candidate media using documented browser APIs. The native host will validate and pass structured messages to the local application. The capture engine will determine which downloads are actually feasible; not every website or protected stream can be captured.
+Not every website or protected stream can be captured. MediaGrab does not bypass DRM or access controls.
 
 ## Current implementation
 
-- GTK4/libadwaita download queue with progress, cancellation, retry, and a three-download concurrency limit.
-- Configurable download folder selected from the native folder chooser and persisted in the XDG user configuration directory.
-- Queue rows redact URL query and fragment values from their on-screen previews, helping avoid accidental exposure of signed download links.
-- Shows estimated time remaining when total size and transfer speed are available.
-- HTTP(S) downloads with safe filenames, progress reporting, partial files, cooperative cancellation, and atomic finalization.
-- Optional FFmpeg-backed HLS/DASH downloads using stream copy into Matroska (`.mkv`), with progress updates, cancellation, safe finalization, and errors that do not echo signed URLs. Install FFmpeg with `sudo dnf install ffmpeg`.
-- Validator-aware resume using ETag or Last-Modified, including bounded byte-range responses and safe restart when range continuation is unavailable.
-- Crash-resistant persistence for unfinished queue entries; interrupted items can be retried after restart.
-- Initial media inspection helpers for direct media, HLS, and DASH classification, HLS master-playlist variant parsing, alternate HLS audio/subtitle track parsing, and DASH representation metadata extraction.
-- Browser popup for user-triggered scans of resource timing, video/audio elements, subtitle tracks, and downloadable links; results prioritize manifests and complete media over less useful candidates.
-- Automated tests for transfers and media parsing, run by GitHub Actions on Python 3.11–3.14.
+- GTK4/libadwaita queue with progress, cancellation, retry, and three concurrent downloads.
+- Configurable destination folder, persisted settings, queue recovery, and ETA display.
+- HTTP(S) transfers with safe filenames, partial files, validator-aware resume, cancellation, and atomic finalization.
+- Optional FFmpeg-backed HLS/DASH downloads, stream-copy remuxing to MKV, progress and cancellation.
+- Media classification, HLS variant and alternate audio/subtitle parsing, and DASH representation metadata extraction.
+- **New manifest inspector:** fetches bounded HLS/DASH manifest responses, resolves variant/representation metadata, lists alternate HLS tracks, and reports choices without printing signed query strings.
+- Browser popup scans page-visible resource timing, media elements, subtitle tracks, and media-looking links. Handoffs are user-triggered.
+- Automated tests run on Python 3.11–3.14.
+
+## Inspect a stream manifest
+
+After installing the project, run:
+
+```fish
+mediagrab-inspect 'https://example.test/path/master.m3u8'
+mediagrab-inspect 'https://example.test/path/manifest.mpd' --timeout 20
+```
+
+The report shows available HLS resolutions and bitrates, alternate audio/subtitle declarations, or DASH representation metadata. This is an inspection tool, not yet the in-app quality picker. Manifest fetches are limited to 4 MiB and use a finite timeout. Query strings are omitted from the report because they may contain signed credentials. Actual downloads still require the original URL and may fail if authentication, DRM, or site-specific behavior is involved.
 
 ## Next milestones
 
-1. **End-to-end browser handoff:** validate Firefox and Chromium-family context menus against a running desktop session.
-2. **Detection improvements:** expand beyond on-demand page-visible signals to reliable request observation where permissions and browser APIs allow, while keeping detection user-controlled.
-3. **Media capture:** inspect browser-observed media requests and HLS/DASH manifests; expose quality choices only when verified. FFmpeg handles supported HLS/DASH manifests; DASH template-based extraction remains dependent on FFmpeg's support and stream access.
-4. **Reliability and polish:** user-controlled pause/resume, collision-safe simultaneous downloads, diagnostics with secrets redacted, packaging, and broader browser validation.
+1. End-to-end browser handoff validation in Firefox and Chromium.
+2. Connect manifest inspection to an in-app quality/track selection dialog.
+3. Improve user-controlled request observation where supported by browser APIs.
+4. Add pause/resume controls, collision-safe simultaneous downloads, diagnostics, and packaging.
 
 ## Development principles
 
 - Implement independently using public documentation and observable behavior; do not copy proprietary IDM code or bundle proprietary extension files.
-- Prefer coherent, reviewable feature batches with automated tests; avoid splitting a feature into unnecessary implementation/test-only commit pairs.
-- Be explicit about unsupported sites and protected content instead of promising universal capture.
-- Keep browser detection, extraction, downloading, and UI responsibilities separated.
+- Prefer coherent feature batches with automated tests.
+- Be explicit about unsupported sites and protected content.
+- Keep browser detection, inspection, downloading, and UI responsibilities separated.
 
 ## Project layout
 
-- `app/` — GTK4/libadwaita interface
-- `browser-extension/` — browser extension
+- `app/` — GTK4/libadwaita interface and download core
+- `browser-extension/` — browser extensions
 - `native-host/` — native messaging bridge
-- `capture-engine/` — media inspection and extraction
 - `docs/` — architecture and development notes
-- `research/` — independently written behavioral observations
 - `tests/` — automated tests
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines. Browser handoff setup and current limitations are documented in [docs/development.md](docs/development.md) and [the native-host installer guide](docs/browser-native-host-installer.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/development.md](docs/development.md).
 
 ## License
 
-The project license will be selected before distributing implementation code. Do not assume this repository grants permission to use third-party proprietary assets or code.
+The project license will be selected before distributing implementation code.

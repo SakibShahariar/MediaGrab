@@ -18,6 +18,7 @@ test = ["pytest>=8"]
 [project.scripts]
 mediagrab = "mediagrab.main:main"
 mediagrab-native-host = "mediagrab.native_host:main"
+mediagrab-inspect = "mediagrab.media_inspector:main"
 
 [tool.setuptools.packages.find]
 where = ["app"]
