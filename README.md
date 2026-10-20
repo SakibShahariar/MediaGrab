@@ -7,7 +7,7 @@ A native Linux download manager focused on reliable browser-to-desktop media cap
 ## Goals
 
 - A polished GTK4/libadwaita desktop experience for GNOME and other Linux desktops.
-- Cross-browser integration: Firefox and Chromium-based browsers, with Brave, Vivaldi, and other compatible browsers supported where their extension and native-messaging APIs permit.
+- Cross-browser integration: Firefox and Chromium-based browsers, with Brave, Vivaldi, and other compatible browsers supported where their extension and native-messaging APIs permit it.
 - Detect downloadable media and offer clear choices for available streams and qualities where technically possible.
 - Hand downloads from the browser to the desktop app through a versioned native-messaging bridge (manual context-menu handoff prototype now exists).
 - Handle authenticated media carefully, using only browser-session information that the user is authorized to access.
@@ -46,13 +46,13 @@ The extension will detect candidate media using documented browser APIs. The nat
 - Validator-aware resume using ETag or Last-Modified, including bounded byte-range responses and safe restart when range continuation is unavailable.
 - Crash-resistant persistence for unfinished queue entries; interrupted items can be retried after restart.
 - Initial media inspection helpers for direct media, HLS, and DASH classification, HLS master-playlist variant parsing, alternate HLS audio/subtitle track parsing, and DASH representation metadata extraction.
-- Browser popup for user-triggered scans of page resource timing, with explicit per-candidate handoff and URL query-string redaction in the display.
+- Browser popup for user-triggered scans of resource timing, video/audio elements, subtitle tracks, and downloadable links; results prioritize manifests and complete media over less useful candidates.
 - Automated tests for transfers and media parsing, run by GitHub Actions on Python 3.11–3.14.
 
 ## Next milestones
 
 1. **End-to-end browser handoff:** validate Firefox and Chromium-family context menus against a running desktop session.
-2. **Detection improvements:** expand beyond on-demand resource timing to reliable request observation where permissions and browser APIs allow, while keeping detection user-controlled.
+2. **Detection improvements:** expand beyond on-demand page-visible signals to reliable request observation where permissions and browser APIs allow, while keeping detection user-controlled.
 3. **Media capture:** inspect browser-observed media requests and HLS/DASH manifests; expose quality choices only when verified. FFmpeg handles supported HLS/DASH manifests; DASH template-based extraction remains dependent on FFmpeg's support and stream access.
 4. **Reliability and polish:** user-controlled pause/resume, collision-safe simultaneous downloads, diagnostics with secrets redacted, packaging, and broader browser validation.
 

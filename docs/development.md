@@ -1,6 +1,6 @@
 # Development Setup
 
-These instructions target Fedora with GNOME. MediaGrab has a GTK4/libadwaita download queue, a basic HTTP(S) download core, an FFmpeg-backed HLS/DASH adapter, and an early manual browser-to-desktop handoff prototype. Automatic browser media detection is not implemented yet.
+These instructions target Fedora with GNOME. MediaGrab has a GTK4/libadwaita download queue, a basic HTTP(S) download core, an FFmpeg-backed HLS/DASH adapter, and an early manual browser-to-desktop handoff prototype. Browser scans now combine page-visible resource timing, video/audio elements, subtitle tracks, and media-looking links; this remains a user-triggered scan, not automatic request interception.
 
 ## Install system dependencies
 
@@ -53,7 +53,7 @@ Tests use a local HTTP server and mocked FFmpeg processes; they do not need an e
 - Interrupted direct downloads can resume if the server supports HTTP byte ranges and the saved partial has a matching validator (ETag or Last-Modified). If the server ignores the range request, MediaGrab restarts the partial from byte zero.
 - Cancellation of direct downloads is cooperative and may wait for the current network read to return or time out.
 - HLS/DASH downloads require FFmpeg (`sudo dnf install ffmpeg`) and remux to MKV without re-encoding. Some streams may fail due to expired URLs, missing browser authentication, unsupported codecs, or DRM; the app does not bypass DRM.
-- Browser handoff is a manual prototype. The popup can scan resource-timing entries only when the user asks; automatic request interception and end-to-end desktop/browser verification remain outstanding.
+- Browser scans are still user-triggered and limited to page-visible URLs. They may miss blob URLs, opaque API endpoints, authenticated requests, hidden streams, and protected content. The extension does not continuously monitor browsing activity.
 
 ## Browser handoff prototype
 
@@ -71,5 +71,6 @@ The native host uses a versioned JSON message framed with a four-byte little-end
 ### Current browser integration limitations
 
 - Browser handoff remains manual; a page URL is not necessarily a downloadable file.
-- Resource-timing scans only see resources exposed by the page's timing entries. They may miss blob URLs, hidden streams, and requests whose details are not exposed to the page.
+- Popup scanning combines resource timing, media element sources, subtitle tracks, and media-looking links. Query strings are hidden in candidate labels, but retained for the actual handoff because signed URLs may be required.
+- Resource-timing scans cannot read response bodies or reliably infer MIME types. They may miss blob URLs, hidden streams, and requests whose details are not exposed to the page.
 - Browser extension behavior and GTK UI integration still need end-to-end testing on a desktop. Python CI tests validate the protocol boundary but cannot verify browser installation or visual behavior.
