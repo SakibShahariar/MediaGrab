@@ -52,7 +52,12 @@ def inspect_manifest(url: str, *, timeout: float = DEFAULT_TIMEOUT) -> ManifestI
         with urlopen(request, timeout=timeout) as response:
             final_url = response.geturl()
             final = urlparse(final_url)
-            if final.scheme not in {"http", "https"} or not final.hostname:
+            if (
+                final.scheme not in {"http", "https"}
+                or not final.hostname
+                or final.username is not None
+                or final.password is not None
+            ):
                 raise ValueError("Manifest redirected to an unsupported URL")
             content_type = response.headers.get("Content-Type", "")
             body = response.read(MAX_MANIFEST_BYTES + 1)
