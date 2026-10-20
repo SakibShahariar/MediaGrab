@@ -113,9 +113,13 @@ def parse_dash_representations(
     supported. A representation URL is returned only when that representation
     declares an explicit BaseURL; template-based streams need a segment engine.
     """
-    parsed = urlparse(manifest_url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError("manifest_url must be a valid HTTP(S) URL")
+    try:
+        parsed = urlparse(manifest_url)
+        hostname = parsed.hostname
+    except ValueError as exc:
+        raise ValueError("manifest_url must be a valid HTTP(S) URL") from exc
+    if parsed.scheme not in {"http", "https"} or not hostname or parsed.username is not None or parsed.password is not None:
+        raise ValueError("manifest_url must be a valid HTTP(S) URL without embedded credentials")
     try:
         root = ET.fromstring(manifest)
     except ET.ParseError as exc:
