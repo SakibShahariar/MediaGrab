@@ -167,7 +167,7 @@ def test_hls_renditions_reject_invalid_playlist() -> None:
 
 
 def test_hls_renditions_accept_utf8_bom() -> None:
-    playlist = "\\ufeff#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",NAME=\"English\",URI=\"audio/en.m3u8\"\n"
+    playlist = chr(0xFEFF) + "#EXTM3U\\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\\"audio\\",NAME=\\"English\\",URI=\\"audio/en.m3u8\\"\\n"
     tracks = parse_hls_renditions("https://cdn.example/master.m3u8", playlist)
     assert len(tracks) == 1
     assert tracks[0].url == "https://cdn.example/audio/en.m3u8"
