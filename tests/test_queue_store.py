@@ -73,3 +73,11 @@ def test_malformed_authority_is_ignored_during_recovery(tmp_path: Path) -> None:
     path = tmp_path / "queue.json"
     path.write_text(json.dumps([{"url": "https://[malformed/file.bin"}, {"url": "https://example.test/good.bin"}]), encoding="utf-8")
     assert load_queue(path) == [{"url": "https://example.test/good.bin"}]
+
+
+def test_default_queue_path_respects_xdg_state_home(monkeypatch, tmp_path: Path) -> None:
+    from mediagrab.queue_store import default_queue_path
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    assert default_queue_path() == tmp_path / "state" / "mediagrab" / "queue.json"
+    monkeypatch.setenv("XDG_STATE_HOME", "")
+    assert default_queue_path() == Path.home() / ".local" / "state" / "mediagrab" / "queue.json"
