@@ -20,7 +20,10 @@ def test_save_and_load_settings_atomically(tmp_path: Path) -> None:
     selected = tmp_path / "My Downloads"
     save_settings({"download_directory": str(selected)}, path)
     assert load_settings(path)["download_directory"] == str(selected)
-    assert json.loads(path.read_text(encoding="utf-8")) == {"download_directory": str(selected)}
+    assert json.loads(path.read_text(encoding="utf-8")) == {
+        "download_directory": str(selected),
+        "diagnostics_level": "INFO",
+    }
     assert not list(path.parent.glob("*.tmp"))
 
 
@@ -46,3 +49,24 @@ def test_default_settings_path_respects_xdg_config_home(monkeypatch, tmp_path: P
     assert default_settings_path() == tmp_path / "config" / "mediagrab" / "settings.json"
     monkeypatch.setenv("XDG_CONFIG_HOME", "")
     assert default_settings_path() == Path.home() / ".config" / "mediagrab" / "settings.json"
+
+
+
+def test_diagnostics_verbosity_is_validated_and_persisted(tmp_path: Path) -> None:
+    path = tmp_path / "settings.json"
+    assert load_settings(path)["diagnostics_level"] == "INFO"
+    save_settings({
+        "download_directory": str(tmp_path / "Downloads"),
+        "diagnostics_level": "DEBUG",
+    }, path)
+    assert load_settings(path)["diagnostics_level"] == "DEBUG"
+    path.write_text(json.dumps({
+        "download_directory": str(tmp_path / "Downloads"),
+        "diagnostics_level": "TRACE",
+    }), encoding="utf-8")
+    assert load_settings(path)["diagnostics_level"] == "INFO"
+    with pytest.raises(ValueError, match="diagnostics_level"):
+        save_settings({
+            "download_directory": str(tmp_path / "Downloads"),
+            "diagnostics_level": "TRACE",
+        }, path)

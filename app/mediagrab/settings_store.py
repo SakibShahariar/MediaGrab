@@ -36,7 +36,13 @@ def load_settings(path: str | Path | None = None) -> dict[str, str]:
     candidate = Path(destination).expanduser()
     if not candidate.is_absolute():
         candidate = default_download_directory()
-    return {"download_directory": str(candidate)}
+    diagnostics_level = raw.get("diagnostics_level", "INFO")
+    if not isinstance(diagnostics_level, str) or diagnostics_level.upper() not in {"ERROR", "WARNING", "INFO", "DEBUG"}:
+        diagnostics_level = "INFO"
+    return {
+        "download_directory": str(candidate),
+        "diagnostics_level": diagnostics_level.upper(),
+    }
 
 
 def save_settings(settings: dict[str, str], path: str | Path | None = None) -> None:
@@ -48,9 +54,15 @@ def save_settings(settings: dict[str, str], path: str | Path | None = None) -> N
     if not directory.is_absolute():
         raise ValueError("download_directory must be an absolute path")
 
+    diagnostics_level = settings.get("diagnostics_level", "INFO")
+    if not isinstance(diagnostics_level, str) or diagnostics_level.upper() not in {"ERROR", "WARNING", "INFO", "DEBUG"}:
+        raise ValueError("diagnostics_level must be ERROR, WARNING, INFO, or DEBUG")
     settings_path = Path(path) if path is not None else default_settings_path()
     settings_path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps({"download_directory": str(directory)}, indent=2) + "\n"
+    payload = json.dumps({
+        "download_directory": str(directory),
+        "diagnostics_level": diagnostics_level.upper(),
+    }, indent=2) + "\n"
     fd, temporary_name = tempfile.mkstemp(
         prefix=f".{settings_path.name}.", suffix=".tmp", dir=settings_path.parent
     )
