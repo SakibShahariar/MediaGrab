@@ -38,6 +38,10 @@ mediagrab-inspect 'https://example.test/manifest.mpd' --timeout 20
 
 The inspector fetches only the manifest, caps its response at 4 MiB, uses a finite timeout, and prints URLs without query strings or fragments. It reports declared metadata, not a guarantee that a representation is playable. It does not collect browser cookies or authorization headers.
 
+## Queue recovery
+
+Unfinished queue entries are stored in `$XDG_STATE_HOME/mediagrab/queue.json` (or `~/.local/state/mediagrab/queue.json`). When the app starts, unfinished entries return as **Interrupted** rows and can be retried. Direct HTTP downloads keep a `.part` file and validator metadata beside the destination; retry resumes with a byte-range request only when a strong ETag or Last-Modified validator is available. Partial data is flushed as chunks arrive, while finalization still uses an atomic rename. If the server does not support a safe resume, MediaGrab restarts the transfer rather than appending unvalidated bytes. FFmpeg HLS/DASH tasks do not currently support pause/resume.
+
 ## Diagnostics
 
 The app writes rotating JSON Lines diagnostics to `$XDG_STATE_HOME/mediagrab/diagnostics.jsonl` (or `~/.local/state/mediagrab/diagnostics.jsonl`). The active log and its two rotations are bounded to 1 MiB each and are created with owner-only permissions. Open the diagnostics button in the main window to select ERROR, WARNING, INFO, or DEBUG verbosity, or copy the redacted log to the clipboard. URLs, credentials, authorization/cookie headers, tokens, and personal paths are redacted before records are written and again before copying. Logging is limited to lifecycle events; per-chunk progress is not logged.
