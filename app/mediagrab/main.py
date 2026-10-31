@@ -20,11 +20,14 @@ from mediagrab.capture import MediaKind, HLSVariant
 from mediagrab.task_factory import create_download_task
 from mediagrab.queue_store import load_queue, save_queue
 from mediagrab.settings_store import load_settings, save_settings
+from mediagrab.diagnostics import configure_logging, get_logger, log_event, read_diagnostics
 from mediagrab.url_utils import redact_url
 
 
 APP_ID = "io.github.SakibShahariar.MediaGrab"
 MAX_CONCURRENT_DOWNLOADS = 3
+_LOG = get_logger("application")
+_DIAGNOSTIC_LEVELS = ("ERROR", "WARNING", "INFO", "DEBUG")
 
 
 def format_bytes(value: float) -> str:
@@ -199,6 +202,12 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         root.append(header)
         header.set_title_widget(Adw.WindowTitle(title="MediaGrab", subtitle="Downloads"))
 
+        diagnostics_button = Gtk.Button.new_from_icon_name("dialog-information-symbolic")
+        diagnostics_button.set_tooltip_text("Diagnostics and logging")
+        diagnostics_button.add_css_class("flat")
+        diagnostics_button.connect("clicked", self._on_diagnostics_clicked)
+        header.pack_end(diagnostics_button)
+
         destination_button = Gtk.Button.new_from_icon_name("folder-open-symbolic")
         destination_button.set_tooltip_text("Choose download folder")
         destination_button.add_css_class("flat")
@@ -274,6 +283,65 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         footer.set_xalign(0)
         content.append(footer)
         self._restore_queue()
+
+    def _on_diagnostics_clicked(self, _button: Gtk.Button) -> None:
+        settings = load_settings()
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        content.set_margin_top(6)
+        content.set_margin_bottom(6)
+        content.set_margin_start(6)
+        content.set_margin_end(6)
+        content.append(Gtk.Label(label="Logging verbosity", xalign=0))
+        level = Gtk.DropDown(model=Gtk.StringList.new(list(_DIAGNOSTIC_LEVELS)))
+        level.set_selected(_DIAGNOSTIC_LEVELS.index(settings["diagnostics_level"]))
+        content.append(level)
+        copy_button = Gtk.Button(label="Copy redacted diagnostics")
+        copy_button.add_css_class("flat")
+        copy_button.connect("clicked", self._on_copy_diagnostics)
+        content.append(copy_button)
+
+        dialog = Adw.AlertDialog(
+            heading="Diagnostics",
+            body="Logs are stored privately on this device. URLs, credentials, tokens, and personal paths are redacted before export.",
+        )
+        dialog.set_extra_child(content)
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("save", "Save")
+        dialog.set_default_response("save")
+        dialog.set_close_response("cancel")
+        dialog.set_response_appearance("save", Adw.ResponseAppearance.SUGGESTED)
+
+        def on_response(_dialog: Adw.AlertDialog, response: str) -> None:
+            if response != "save":
+                return
+            selected = level.get_selected()
+            if selected >= len(_DIAGNOSTIC_LEVELS):
+                return
+            diagnostics_level = _DIAGNOSTIC_LEVELS[selected]
+            try:
+                save_settings({
+                    "download_directory": str(self.download_directory),
+                    "diagnostics_level": diagnostics_level,
+                })
+                configure_logging(diagnostics_level)
+            except (OSError, ValueError) as exc:
+                self.toast_overlay.add_toast(Adw.Toast.new(f"Could not save diagnostics settings: {exc}"))
+                return
+            self.toast_overlay.add_toast(Adw.Toast.new(f"Diagnostics verbosity set to {diagnostics_level}."))
+        dialog.connect("response", on_response)
+        dialog.present(self)
+
+    def _on_copy_diagnostics(self, _button: Gtk.Button) -> None:
+        try:
+            contents = read_diagnostics()
+            if not contents.strip():
+                self.toast_overlay.add_toast(Adw.Toast.new("No diagnostics have been recorded yet."))
+                return
+            self.get_display().get_clipboard().set(contents)
+        except OSError as exc:
+            self.toast_overlay.add_toast(Adw.Toast.new(f"Could not read diagnostics: {exc}"))
+            return
+        self.toast_overlay.add_toast(Adw.Toast.new("Redacted diagnostics copied to the clipboard."))
 
     def _on_choose_destination(self, _button: Gtk.Button) -> None:
         dialog = Gtk.FileChooserNative.new(
@@ -420,6 +488,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         if parsed.username is not None or parsed.password is not None:
             self.toast_overlay.add_toast(Adw.Toast.new("URLs with embedded credentials are not accepted."))
             return
+        log_event(_LOG, "manifest_inspection_started", url=url)
         self.toast_overlay.add_toast(Adw.Toast.new("Inspecting media manifest…"))
 
         def worker() -> None:
@@ -427,6 +496,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 result = inspect_manifest(url)
                 GLib.idle_add(self._show_manifest_choices, url, result, None)
             except (ValueError, OSError) as exc:
+                log_event(_LOG, "manifest_inspection_failed", level=40, url=url, error=str(exc))
                 GLib.idle_add(self._show_manifest_choices, url, None, str(exc))
 
         threading.Thread(target=worker, daemon=True, name="mediagrab-inspect").start()
@@ -547,6 +617,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         self.list_box.append(row)
         self._update_count()
         self._persist_queue()
+        log_event(_LOG, "capture_candidate_added", url=url)
         self.toast_overlay.add_toast(Adw.Toast.new("Media candidate added for review."))
         return True
 
@@ -557,6 +628,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         self._rows.remove(row)
         self._update_count()
         self._persist_queue()
+        log_event(_LOG, "capture_candidate_dismissed", url=row.url)
         self.toast_overlay.add_toast(Adw.Toast.new("Media candidate dismissed."))
 
     def dismiss_candidate_by_url(self, url: str) -> None:
@@ -651,22 +723,28 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
             return
         row.prepare_retry(task)
+        log_event(_LOG, "download_retry_queued", url=row.url)
         self._persist_queue()
         self._enqueue_download(row)
         self.toast_overlay.add_toast(Adw.Toast.new("Retry added to queue."))
 
     def _run_download(self, task: DownloadTask, row: DownloadRow) -> None:
+        log_event(_LOG, "download_started", url=row.url)
         try:
             target = task.run(
                 lambda progress: GLib.idle_add(row.update_progress, progress)
             )
+            log_event(_LOG, "download_completed", url=row.url, destination=str(target))
             GLib.idle_add(self._download_finished, row, "Completed", str(target))
         except DownloadPaused as exc:
+            log_event(_LOG, "download_paused", url=row.url)
             GLib.idle_add(self._download_finished, row, "Paused", str(exc))
         except DownloadError as exc:
             state = "Cancelled" if task.state == "cancelled" else "Failed"
+            log_event(_LOG, "download_failed" if state == "Failed" else "download_cancelled", level=40 if state == "Failed" else 20, url=row.url, error=str(exc))
             GLib.idle_add(self._download_finished, row, state, str(exc))
         except Exception as exc:  # Keep an unexpected worker error from silently losing the queue row.
+            log_event(_LOG, "download_unexpected_error", level=40, url=row.url, error=str(exc), error_type=type(exc).__name__)
             GLib.idle_add(
                 self._download_finished,
                 row,
@@ -697,6 +775,11 @@ class MediaGrabApplication(Adw.Application):
             application_id=APP_ID,
             flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE,
         )
+        try:
+            configure_logging(load_settings()["diagnostics_level"])
+        except OSError:
+            # Diagnostics must never prevent the download manager from starting.
+            pass
         self.connect("activate", self._on_activate)
         self.connect("command-line", self._on_command_line)
 

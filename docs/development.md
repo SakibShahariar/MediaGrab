@@ -38,6 +38,10 @@ mediagrab-inspect 'https://example.test/manifest.mpd' --timeout 20
 
 The inspector fetches only the manifest, caps its response at 4 MiB, uses a finite timeout, and prints URLs without query strings or fragments. It reports declared metadata, not a guarantee that a representation is playable. It does not collect browser cookies or authorization headers.
 
+## Diagnostics
+
+The app writes rotating JSON Lines diagnostics to `$XDG_STATE_HOME/mediagrab/diagnostics.jsonl` (or `~/.local/state/mediagrab/diagnostics.jsonl`). The active log and its two rotations are bounded to 1 MiB each and are created with owner-only permissions. Open the diagnostics button in the main window to select ERROR, WARNING, INFO, or DEBUG verbosity, or copy the redacted log to the clipboard. URLs, credentials, authorization/cookie headers, tokens, and personal paths are redacted before records are written and again before copying. Logging is limited to lifecycle events; per-chunk progress is not logged.
+
 ## Browser integration
 
 MediaGrab provides Firefox and Chromium-family extensions. Manual scanning remains user-triggered and inspects page-visible resource timing entries, media elements, subtitle tracks, and links. Optional background response observation is off by default; users can explicitly grant access to all HTTP(S) sites from the popup. The observer reads only response `Content-Type` and candidate URLs from `webRequest.onHeadersReceived`; it does not read request headers, cookies, authorization values, or response bodies. Candidate URLs are kept in `storage.session` memory, deduplicated by tab and URL, and cleared on navigation, tab close, permission revocation, or browser exit. Choosing **Review in MediaGrab** sends a candidate message to the native host; the app adds a persistent **Detected** row without starting a transfer. Review the row in the app, then download it, inspect an HLS/DASH manifest, or dismiss it. Context-menu link/page handoff remains an explicit immediate-download action.

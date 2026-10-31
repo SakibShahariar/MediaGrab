@@ -45,3 +45,12 @@ The current suite is site-independent and uses fixtures, local HTTP servers, and
 - `tests/browser-extension-background.test.cjs`: Node-based Firefox/Chromium background API harness covering response classification, per-tab deduplication, navigation cleanup, permission revocation, and context-menu handoff.
 
 These tests establish core behavior in controlled environments. They do not replace real-world HLS/DASH sample validation or browser/GTK end-to-end testing. See the open validation work for [real-world HLS samples](https://github.com/SakibShahariar/MediaGrab/issues/3), [advanced DASH cases](https://github.com/SakibShahariar/MediaGrab/issues/4), and [browser handoff testing](https://github.com/SakibShahariar/MediaGrab/issues/14).
+
+
+## Diagnostics
+
+| Capability | Current behavior | Limitations |
+|---|---|---|
+| Structured logging | JSONL lifecycle events for downloads, retries, manifest inspection, and browser candidate review; secrets and personal paths are redacted. | No per-chunk progress logging; diagnostics are local to the user account. |
+| Storage and export | Rotating 1 MiB log plus two backups, owner-only file permissions, and a copy-to-clipboard action that redacts again. | Clipboard export is user-triggered; no automatic upload or remote telemetry. |
+| Verbosity | ERROR, WARNING, INFO, and DEBUG can be selected in the app and persisted in settings. | DEBUG may contain more operational detail, but sensitive fields still pass through redaction. |

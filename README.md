@@ -32,12 +32,13 @@ Direct HTTP(S) downloads can be paused and resumed; pause is cooperative and may
 - Media classification, HLS variant and alternate audio/subtitle parsing, and DASH representation metadata extraction.
 - **Manifest inspection and track selection:** fetches bounded HLS/DASH manifests, lists HLS variants and alternate audio/subtitle playlists, and offers optional external audio/subtitle selection. Selected streams are muxed into MKV with FFmpeg stream copy; track choices survive queue recovery and retry.
 - Browser popup scans page-visible resources and can optionally observe media response URLs and Content-Type headers across HTTP(S) sites after explicit all-sites permission. Candidates stay in browser-session memory, are deduplicated per tab, and are reviewed before handoff.
+- Structured JSONL diagnostics record download and capture lifecycle events, redact sensitive values, rotate within a bounded size, and use private file permissions. Verbosity is configurable and redacted logs can be copied from the app.
 - Automated tests run on Python 3.11–3.14.
 - A [support matrix](docs/support-matrix.md) distinguishes tested core behavior from outstanding real-world and browser validation.
 
 ## Browser integration
 
-The Firefox and Chromium-family extensions support manual link/page handoff and user-triggered current-tab scanning. Install the extension and register the native host using the [browser installation guide](docs/browser-native-host-installer.md). Automatic background request observation is not implemented.
+The Firefox and Chromium-family extensions support manual link/page handoff, user-triggered current-tab scanning, and optional background response observation after the user grants all-sites HTTP(S) permission. Detected candidates can be sent to the persistent in-app review inbox without starting a download. Install the extension and register the native host using the [browser installation guide](docs/browser-native-host-installer.md).
 
 ## Inspect a stream manifest
 
@@ -54,7 +55,7 @@ The report shows available HLS resolutions and bitrates, alternate audio/subtitl
 
 1. End-to-end browser handoff validation in Firefox and Chromium.
 2. Complete real-browser request-observation and in-app review-inbox end-to-end testing.
-3. Add structured diagnostics and packaging.
+3. Validate browser-to-desktop candidate review in installed Firefox and Chromium builds, then continue packaging.
 
 ## Development principles
 
