@@ -11,27 +11,45 @@ python -m pip install --editable ".[test]"
 python scripts/install_native_host.py --browser firefox
 ```
 
-For Chromium-family browsers, first load `browser-extension/chromium` as an unpacked extension, open its details page, and copy the extension ID. Then run:
+For Chromium-family browsers, first load `browser-extension/chromium` as an unpacked extension, open its details page, and copy the extension ID. Then choose the browser you use:
 
 ```fish
 python scripts/install_native_host.py --browser chromium --extension-id YOUR_32_LETTER_EXTENSION_ID
+python scripts/install_native_host.py --browser chrome --extension-id YOUR_32_LETTER_EXTENSION_ID
+python scripts/install_native_host.py --browser brave --extension-id YOUR_32_LETTER_EXTENSION_ID
+python scripts/install_native_host.py --browser vivaldi --extension-id YOUR_32_LETTER_EXTENSION_ID
 ```
 
-For both browsers, pass both settings:
+For Firefox and Chromium, pass both settings:
 
 ```fish
 python scripts/install_native_host.py --browser both --extension-id YOUR_32_LETTER_EXTENSION_ID
 ```
 
-Firefox uses the fixed ID `mediagrab@github.com`. Chromium extension IDs must be exactly 32 lowercase letters from `a` to `p`. The installer locates `mediagrab-native-host` on `PATH`; use `--host-path /absolute/path/to/mediagrab-native-host` if necessary. It refuses to register a missing or non-executable host.
+Firefox uses the fixed ID `mediagrab@github.com`. Chromium-family extension IDs must be exactly 32 lowercase letters from `a` to `p`. The installer locates `mediagrab-native-host` on `PATH`; use `--host-path /absolute/path/to/mediagrab-native-host` if necessary. It refuses to register a missing or non-executable host.
 
-Registrations are written under `~/.mozilla/native-messaging-hosts/` for Firefox and `~/.config/chromium/NativeMessagingHosts/` for Chromium. The registration directory is owner-only and the manifest is mode `0600`. Existing registration files with the same MediaGrab host name are replaced.
+The default user-level Linux registration directories are:
+
+| Browser | Registration directory |
+|---|---|
+| Firefox | `~/.mozilla/native-messaging-hosts/` |
+| Chromium | `~/.config/chromium/NativeMessagingHosts/` |
+| Google Chrome | `~/.config/google-chrome/NativeMessagingHosts/` |
+| Brave | `~/.config/BraveSoftware/Brave-Browser/NativeMessagingHosts/` |
+| Vivaldi | `~/.config/vivaldi/NativeMessagingHosts/` |
+
+For Chromium-family browsers, `XDG_CONFIG_HOME` is respected when set to an absolute path. Firefox uses its standard `~/.mozilla` location. The registration directory is owner-only and the manifest is mode `0600`. Existing registration files with the same MediaGrab host name are replaced.
+
+**Packaging limitations:** Vivaldi's Snap and Flatpak packages do not expose the Native Messaging API; use the native Linux package. Brave Flatpak sandbox registration has not been validated. Browser-specific directories are implemented, but successful end-to-end handoff still needs testing in each installed browser.
 
 ## Remove
 
 ```fish
 python scripts/install_native_host.py --browser firefox --uninstall
 python scripts/install_native_host.py --browser chromium --uninstall
+python scripts/install_native_host.py --browser chrome --uninstall
+python scripts/install_native_host.py --browser brave --uninstall
+python scripts/install_native_host.py --browser vivaldi --uninstall
 ```
 
-Uninstalling the registration does not remove MediaGrab, its extension, the download queue, or downloaded files. Restart the browser after installing or removing a registration. Brave/Vivaldi may require their own native-messaging directory; support for their paths is not claimed yet.
+Uninstalling the registration does not remove MediaGrab, its extension, the download queue, or downloaded files. Restart the browser after installing or removing a registration.
