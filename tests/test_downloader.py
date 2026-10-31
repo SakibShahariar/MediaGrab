@@ -17,7 +17,12 @@ PAYLOAD = b"MediaGrab test payload\\n" * 4096
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
-        if self.path == "/missing":
+        if self.path.startswith("/redirect"):
+            self.send_response(302)
+            self.send_header("Location", "/payload.bin?token=target-secret")
+            self.end_headers()
+            return
+        if self.path.startswith("/missing"):
             self.send_error(404, "Not found")
             return
         range_header = self.headers.get("Range")
@@ -83,6 +88,24 @@ def test_download_writes_file_and_reports_completion(tmp_path: Path, server: str
     assert progress
     assert progress[-1].state == "completed"
     assert progress[-1].received == len(PAYLOAD)
+
+
+def test_redirects_are_logged_without_leaking_signed_urls(tmp_path: Path, server: str) -> None:
+    from mediagrab.diagnostics import configure_logging, read_diagnostics, shutdown_logging
+
+    log_path = tmp_path / "diagnostics.jsonl"
+    url = f"{server}/redirect?token=source-secret"
+    try:
+        configure_logging("INFO", log_path)
+        result = DownloadTask(url, tmp_path / "downloads").run()
+        assert result.read_bytes() == PAYLOAD
+        records = read_diagnostics(log_path)
+        assert "download_redirected" in records
+        assert "127.0.0.1" in records
+        assert "source-secret" not in records
+        assert "target-secret" not in records
+    finally:
+        shutdown_logging()
 
 
 def test_http_error_is_reported(tmp_path: Path, server: str) -> None:

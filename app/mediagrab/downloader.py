@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import unquote, urlparse
 
+from mediagrab.diagnostics import get_logger, log_event
+
 
 @dataclass(frozen=True)
 class DownloadProgress:
@@ -33,6 +35,7 @@ ProgressCallback = Callable[[DownloadProgress], None]
 
 # Keep worker-to-GTK progress scheduling to roughly 6–7 updates per second.
 PROGRESS_UPDATE_INTERVAL = 0.15
+_LOG = get_logger("downloader")
 
 
 class DownloadError(Exception):
@@ -186,6 +189,15 @@ class DownloadTask:
                 request = urllib.request.Request(self.url, headers=headers)
 
                 with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                    get_final_url = getattr(response, "geturl", None)
+                    final_url = get_final_url() if callable(get_final_url) else request.full_url
+                    if final_url != request.full_url:
+                        log_event(
+                            _LOG,
+                            "download_redirected",
+                            source_url=request.full_url,
+                            target_url=final_url,
+                        )
                     status = getattr(response, "status", 200)
                     if status < 200 or status >= 300:
                         raise DownloadError(f"Unexpected HTTP status: {status}")
