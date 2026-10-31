@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import threading
 from pathlib import Path
@@ -798,8 +799,12 @@ class MediaGrabApplication(Adw.Application):
         try:
             action, argument = parse_command(args)
         except ValueError as exc:
-            command_line.print(f"{exc}\\n")
+            command_line.print(f"{exc}\n")
             return 2
+
+        if action == "activate":
+            self._on_activate(app)
+            return 0
 
         if action in {"list", "status"}:
             window = app.get_active_window()
@@ -814,7 +819,7 @@ class MediaGrabApplication(Adw.Application):
                 for index, row in enumerate(window._rows, start=1)
             ]
             if action == "list":
-                command_line.print(json.dumps(rows, ensure_ascii=False) + "\\n")
+                command_line.print(json.dumps(rows, ensure_ascii=False) + "\n")
             else:
                 counts = {
                     "total": len(rows),
@@ -823,13 +828,13 @@ class MediaGrabApplication(Adw.Application):
                     "completed": sum(row.status_label.get_text() == "Completed" for row in window._rows),
                     "failed": sum(row.status_label.get_text() == "Failed" for row in window._rows),
                 }
-                command_line.print(json.dumps(counts, ensure_ascii=False) + "\\n")
+                command_line.print(json.dumps(counts, ensure_ascii=False) + "\n")
             return 0
 
         self._on_activate(app)
         window = app.get_active_window()
         if not isinstance(window, MediaGrabWindow):
-            command_line.print("Could not access the MediaGrab window.\\n")
+            command_line.print("Could not access the MediaGrab window.\n")
             return 1
 
         if action in {"add-url", "add-candidate"}:
@@ -844,31 +849,31 @@ class MediaGrabApplication(Adw.Application):
         assert argument is not None
         row_id = int(argument)
         if row_id > len(window._rows):
-            command_line.print(f"No queue item with ID {row_id}.\\n")
+            command_line.print(f"No queue item with ID {row_id}.\n")
             return 2
         row = window._rows[row_id - 1]
         if action == "pause":
             if not isinstance(row.task, DownloadTask):
-                command_line.print("Pause is only supported for direct HTTP downloads.\\n")
+                command_line.print("Pause is only supported for direct HTTP downloads.\n")
                 return 2
             if row not in window._pending_downloads and row not in window._active_downloads:
-                command_line.print(f"Queue item {row_id} is not active or queued.\\n")
+                command_line.print(f"Queue item {row_id} is not active or queued.\n")
                 return 2
             window.pause_download(row)
         elif action == "cancel":
             if row not in window._pending_downloads and row not in window._active_downloads:
-                command_line.print(f"Queue item {row_id} is not active or queued.\\n")
+                command_line.print(f"Queue item {row_id} is not active or queued.\n")
                 return 2
             window.cancel_download(row)
         elif action in {"resume", "retry"}:
             if row in window._pending_downloads or row in window._active_downloads:
-                command_line.print(f"Queue item {row_id} is already active or queued.\\n")
+                command_line.print(f"Queue item {row_id} is already active or queued.\n")
                 return 2
             if row.status_label.get_text() not in {"Failed", "Cancelled", "Interrupted", "Paused", "Detected"}:
-                command_line.print(f"Queue item {row_id} cannot be resumed from its current state.\\n")
+                command_line.print(f"Queue item {row_id} cannot be resumed from its current state.\n")
                 return 2
             window.retry_download(row)
-        command_line.print(f"{action} requested for queue item {row_id}.\\n")
+        command_line.print(f"{action} requested for queue item {row_id}.\n")
         return 0
 
 
