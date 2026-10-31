@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=MediaGrab
+GenericName=Media Downloader
+Comment=Capture media links from your browser and download them
+Exec=mediagrab
+Icon=io.github.SakibShahariar.MediaGrab
+Terminal=false
+Categories=AudioVideo;Network;
+Keywords=media;download;video;audio;HLS;DASH;browser;
+StartupNotify=true
+StartupWMClass=io.github.SakibShahariar.MediaGrab
