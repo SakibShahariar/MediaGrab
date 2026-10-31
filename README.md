@@ -38,7 +38,7 @@ Direct HTTP(S) downloads can be paused and resumed; pause is cooperative and may
 
 ## Browser integration
 
-The Firefox and Chromium-family extensions support manual link/page handoff, user-triggered current-tab scanning, and optional background response observation after the user grants all-sites HTTP(S) permission. Detected candidates can be sent to the persistent in-app review inbox without starting a download. Install the extension and register the native host using the [browser installation guide](docs/browser-native-host-installer.md).
+The Firefox and Chromium-family extensions support manual link/page handoff, user-triggered current-tab scanning, and optional background response observation after the user grants all-sites HTTP(S) permission. Detected candidates can be sent to the persistent in-app review inbox without starting a download. Private/incognito tabs are excluded from background response capture, page scanning, and context-menu handoff even if the browser permits the extension to run there; MediaGrab does not offer a private-window capture exception. Install the extension and register the native host using the [browser installation guide](docs/browser-native-host-installer.md).
 
 ## Command-line control
 

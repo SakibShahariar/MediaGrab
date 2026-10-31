@@ -116,6 +116,7 @@ for (const browserName of ["firefox", "chromium"]) {
     observe({...hls, url: "https://cdn.example.test/redirect.m3u8", statusCode: 302});
     observe({...hls, url: "https://user:pass@cdn.example.test/private.mp4"});
     observe({...hls, url: "https://cdn.example.test/image.png", responseHeaders: [{name: "Content-Type", value: "image/png"}]});
+    observe({...hls, url: "https://cdn.example.test/private-window.mp4", incognito: true});
     await settle();
 
     const candidates = h.session[STORAGE_KEY];
@@ -153,7 +154,13 @@ for (const browserName of ["firefox", "chromium"]) {
       pageUrl: "https://page.example.test/"
     });
     await settle();
-    assert.equal(h.sentMessages.length, 1);
+    h.menuClicked.fire({
+      menuItemId: "mediagrab-send-link",
+      linkUrl: "https://media.example.test/private.mp4",
+      pageUrl: "https://page.example.test/"
+    }, {incognito: true});
+    await settle();
+    assert.equal(h.sentMessages.length, 1, "private-window context menus must not hand off URLs");
     assert.equal(h.sentMessages[0].host, "io.github.SakibShahariar.MediaGrab");
     assert.equal(h.sentMessages[0].message.type, "add-url");
     assert.equal(h.sentMessages[0].message.url, "https://media.example.test/file.mp4?sig=private");
