@@ -57,11 +57,11 @@ def load_queue(path: str | Path | None = None) -> list[QueueEntry]:
     if not isinstance(raw, list):
         return []
 
-    entries: list[dict[str, str]] = []
+    entries: list[QueueEntry] = []
     for item in raw:
         if not isinstance(item, dict) or not _valid_http_url(item.get("url")):
             continue
-        entry = {"url": item["url"]}
+        entry: QueueEntry = {"url": item["url"]}
         for field in OPTIONAL_URL_FIELDS:
             value = item.get(field)
             if value is None or value == "":
@@ -78,11 +78,11 @@ def save_queue(entries: list[QueueEntry], path: str | Path | None = None) -> Non
     """Atomically save unfinished entries, preserving valid optional track selections."""
     queue_path = Path(path) if path is not None else default_queue_path()
     queue_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    normalized: list[dict[str, str]] = []
+    normalized: list[QueueEntry] = []
     for item in entries:
         if not isinstance(item, dict) or not _valid_http_url(item.get("url")):
             continue
-        entry = {"url": item["url"]}
+        entry: QueueEntry = {"url": item["url"]}
         for field in OPTIONAL_URL_FIELDS:
             value = item.get(field)
             if value and _valid_http_url(value):
