@@ -44,7 +44,7 @@ class Handler(BaseHTTPRequestHandler):
                 for start in range(0, len(body), 4096):
                     self.wfile.write(body[start:start + 4096])
                     self.wfile.flush()
-                    time.sleep(0.01)
+                    time.sleep(0.08)
             except (BrokenPipeError, ConnectionResetError):
                 pass
             return
@@ -139,8 +139,8 @@ def test_killed_process_leaves_a_resumable_partial(tmp_path: Path, server: str) 
     )
     process = subprocess.Popen(
         [sys.executable, "-c", script, url, str(destination)],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     partial = destination / "slow.bin.part"
     metadata = partial.with_name(partial.name + ".json")
@@ -150,7 +150,12 @@ def test_killed_process_leaves_a_resumable_partial(tmp_path: Path, server: str) 
             if partial.exists() and partial.stat().st_size >= 8192 and metadata.exists():
                 break
             if process.poll() is not None:
-                pytest.fail("Child download exited before creating a resumable partial.")
+                stdout, stderr = process.communicate(timeout=5)
+                pytest.fail(
+                    "Child download exited before creating a resumable partial "
+                    f"(exit {process.returncode}). stdout={stdout.decode(errors='replace')} "
+                    f"stderr={stderr.decode(errors='replace')}"
+                )
             time.sleep(0.02)
         else:
             pytest.fail("Child download did not create a partial file in time.")
