@@ -120,7 +120,7 @@ import time
 import urllib.request
 from mediagrab.downloader import DownloadTask
 
-payload = (b"MediaGrab test payload" + bytes([10])) * 4096
+payload = (b"MediaGrab test payload" + bytes([92, 110])) * 4096
 
 class Response:
     status = 200
