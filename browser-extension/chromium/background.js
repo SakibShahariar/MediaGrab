@@ -1,11 +1,10 @@
 /* Opt-in, non-blocking media response observation for the active browser session. */
-const api = typeof browser !== "undefined" ? browser : chrome;
+const api = chrome;
 const HOST_NAME = "io.github.SakibShahariar.MediaGrab";
 const MENU_LINK = "mediagrab-send-link";
 const MENU_PAGE = "mediagrab-send-page";
 
 function removeMenus() {
-  if (typeof browser !== "undefined") return browser.contextMenus.removeAll();
   return new Promise((resolve, reject) => {
     chrome.contextMenus.removeAll(() => {
       const error = chrome.runtime.lastError;
@@ -33,17 +32,8 @@ function sendUrl(url) {
   ) {
     return Promise.reject(new Error("Only credential-free HTTP(S) links can be sent to MediaGrab."));
   }
-  const message = {version: 1, type: "add-url", url};
-  if (typeof browser !== "undefined") {
-    return browser.runtime.sendNativeMessage(HOST_NAME, message).then((response) => {
-      if (!response || response.ok !== true) {
-        throw new Error((response && response.error) || "MediaGrab did not accept the link.");
-      }
-      return response;
-    });
-  }
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendNativeMessage(HOST_NAME, message, (response) => {
+    chrome.runtime.sendNativeMessage(HOST_NAME, {version: 1, type: "add-url", url}, (response) => {
       const error = chrome.runtime.lastError;
       if (error) return reject(new Error(error.message));
       if (!response || response.ok !== true) {

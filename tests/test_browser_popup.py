@@ -73,10 +73,16 @@ def test_popup_exposes_explicit_background_permission_control() -> None:
     assert "parsed.host + parsed.pathname" in source
 
 
-def test_firefox_and_chromium_background_observers_stay_in_sync() -> None:
+def test_firefox_and_chromium_background_observers_share_capture_contract() -> None:
     firefox = (EXT / "firefox" / "background.js").read_text(encoding="utf-8")
     chromium = (EXT / "chromium" / "background.js").read_text(encoding="utf-8")
-    assert firefox == chromium
+    for source in (firefox, chromium):
+        assert "webRequest.onHeadersReceived.addListener" in source
+        assert "storage.session" in source
+        assert "tabId" in source
+    assert "browser.contextMenus.removeAll()" in firefox
+    assert "removeAll(()" not in firefox
+    assert "chrome.contextMenus.removeAll(()" in chromium
 
 
 
