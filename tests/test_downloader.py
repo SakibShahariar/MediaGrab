@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import http.client
 import subprocess
 import sys
@@ -116,13 +115,12 @@ def test_killed_process_leaves_a_resumable_partial(tmp_path: Path, server: str) 
     url = f"{server}/payload.bin"
     destination = tmp_path / "downloads"
     script = """
-import base64
 import sys
 import time
 import urllib.request
 from mediagrab.downloader import DownloadTask
 
-payload = base64.b64decode(sys.argv[3])
+payload = (b"MediaGrab test payload" + bytes([10])) * 4096
 
 class Response:
     status = 200
@@ -149,7 +147,7 @@ urllib.request.urlopen = lambda *_args, **_kwargs: Response()
 DownloadTask(sys.argv[1], sys.argv[2], chunk_size=16384).run()
 """
     process = subprocess.Popen(
-        [sys.executable, "-c", script, url, str(destination), base64.b64encode(PAYLOAD).decode("ascii")],
+        [sys.executable, "-c", script, url, str(destination)],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
