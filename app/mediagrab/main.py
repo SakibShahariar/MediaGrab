@@ -195,7 +195,9 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         self._rows: list[DownloadRow] = []
         self._pending_downloads: list[DownloadRow] = []
         self._active_downloads: set[DownloadRow] = set()
-        self.download_directory = Path(load_settings()["download_directory"])
+        settings = load_settings()
+        self.download_directory = Path(settings["download_directory"])
+        self.max_concurrent_downloads = int(settings["max_concurrent_downloads"])
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.set_content(root)
@@ -205,7 +207,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         header.set_title_widget(Adw.WindowTitle(title="MediaGrab", subtitle="Downloads"))
 
         diagnostics_button = Gtk.Button.new_from_icon_name("dialog-information-symbolic")
-        diagnostics_button.set_tooltip_text("Diagnostics and logging")
+        diagnostics_button.set_tooltip_text("Settings and diagnostics")
         diagnostics_button.add_css_class("flat")
         diagnostics_button.connect("clicked", self._on_diagnostics_clicked)
         header.pack_end(diagnostics_button)
@@ -276,15 +278,20 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         scroller.set_child(self.list_box)
         content.append(scroller)
 
-        footer = Gtk.Label(
-            label=f"Up to {MAX_CONCURRENT_DOWNLOADS} simultaneous downloads · "
+        self.footer_label = Gtk.Label(
+            label=self._footer_text()
+        )
+        self.footer_label.add_css_class("dim-label")
+        self.footer_label.add_css_class("caption")
+        self.footer_label.set_xalign(0)
+        content.append(self.footer_label)
+        self._restore_queue()
+
+    def _footer_text(self) -> str:
+        return (
+            f"Up to {self.max_concurrent_downloads} simultaneous downloads · "
             "HLS/DASH streams use FFmpeg · browser detections wait for your review"
         )
-        footer.add_css_class("dim-label")
-        footer.add_css_class("caption")
-        footer.set_xalign(0)
-        content.append(footer)
-        self._restore_queue()
 
     def _on_diagnostics_clicked(self, _button: Gtk.Button) -> None:
         settings = load_settings()
@@ -297,14 +304,22 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         level = Gtk.DropDown(model=Gtk.StringList.new(list(_DIAGNOSTIC_LEVELS)))
         level.set_selected(_DIAGNOSTIC_LEVELS.index(settings["diagnostics_level"]))
         content.append(level)
+        concurrency_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        concurrency_label = Gtk.Label(label="Maximum simultaneous downloads", xalign=0)
+        concurrency_label.set_hexpand(True)
+        concurrency = Gtk.SpinButton.new_with_range(1, 10, 1)
+        concurrency.set_value(int(settings["max_concurrent_downloads"]))
+        concurrency_row.append(concurrency_label)
+        concurrency_row.append(concurrency)
+        content.append(concurrency_row)
         copy_button = Gtk.Button(label="Copy redacted diagnostics")
         copy_button.add_css_class("flat")
         copy_button.connect("clicked", self._on_copy_diagnostics)
         content.append(copy_button)
 
         dialog = Adw.AlertDialog(
-            heading="Diagnostics",
-            body="Logs are stored privately on this device. URLs, credentials, tokens, and personal paths are redacted before export.",
+            heading="Settings and diagnostics",
+            body="Choose how many downloads may run at once and how much diagnostic detail MediaGrab records. URLs, credentials, tokens, and personal paths are redacted before export.",
         )
         dialog.set_extra_child(content)
         dialog.add_response("cancel", "Cancel")
@@ -324,8 +339,12 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 save_settings({
                     "download_directory": str(self.download_directory),
                     "diagnostics_level": diagnostics_level,
+                    "max_concurrent_downloads": concurrency.get_value_as_int(),
                 })
                 configure_logging(diagnostics_level)
+                self.max_concurrent_downloads = concurrency.get_value_as_int()
+                self.footer_label.set_text(self._footer_text())
+                self._start_next_downloads()
             except (OSError, ValueError) as exc:
                 self.toast_overlay.add_toast(Adw.Toast.new(f"Could not save diagnostics settings: {exc}"))
                 return
@@ -368,9 +387,11 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 return
             new_directory = Path(path)
             try:
+                settings = load_settings()
                 save_settings({
                     "download_directory": str(new_directory),
-                    "diagnostics_level": load_settings()["diagnostics_level"],
+                    "diagnostics_level": settings["diagnostics_level"],
+                    "max_concurrent_downloads": settings["max_concurrent_downloads"],
                 })
             except (OSError, ValueError) as exc:
                 self.toast_overlay.add_toast(Adw.Toast.new(f"Could not save download folder: {exc}"))
@@ -677,7 +698,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
     def _start_next_downloads(self) -> None:
         while (
             self._pending_downloads
-            and len(self._active_downloads) < MAX_CONCURRENT_DOWNLOADS
+            and len(self._active_downloads) < self.max_concurrent_downloads
         ):
             row = self._pending_downloads.pop(0)
             self._active_downloads.add(row)
