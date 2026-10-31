@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import http.client
+import subprocess
+import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -26,6 +29,25 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404, "Not found")
             return
         range_header = self.headers.get("Range")
+        if self.path.startswith("/slow.bin"):
+            offset = int(range_header.removeprefix("bytes=").split("-", 1)[0]) if range_header else 0
+            body = PAYLOAD[offset:]
+            if offset:
+                self.send_response(206)
+                self.send_header("Content-Range", f"bytes {offset}-{len(PAYLOAD) - 1}/{len(PAYLOAD)}")
+            else:
+                self.send_response(200)
+            self.send_header("ETag", '"payload-v1"')
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            try:
+                for start in range(0, len(body), 4096):
+                    self.wfile.write(body[start:start + 4096])
+                    self.wfile.flush()
+                    time.sleep(0.01)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            return
         body = PAYLOAD
         if range_header and range_header.startswith("bytes="):
             try:
@@ -106,6 +128,46 @@ def test_redirects_are_logged_without_leaking_signed_urls(tmp_path: Path, server
         assert "target-secret" not in records
     finally:
         shutdown_logging()
+
+
+def test_killed_process_leaves_a_resumable_partial(tmp_path: Path, server: str) -> None:
+    url = f"{server}/slow.bin"
+    destination = tmp_path / "downloads"
+    script = (
+        "import sys; from mediagrab.downloader import DownloadTask; "
+        "DownloadTask(sys.argv[1], sys.argv[2], chunk_size=4096).run()"
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-c", script, url, str(destination)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    partial = destination / "slow.bin.part"
+    metadata = partial.with_name(partial.name + ".json")
+    deadline = time.monotonic() + 10
+    try:
+        while time.monotonic() < deadline:
+            if partial.exists() and partial.stat().st_size >= 8192 and metadata.exists():
+                break
+            if process.poll() is not None:
+                pytest.fail("Child download exited before creating a resumable partial.")
+            time.sleep(0.02)
+        else:
+            pytest.fail("Child download did not create a partial file in time.")
+        process.kill()
+        process.wait(timeout=5)
+        saved_size = partial.stat().st_size
+        assert 0 < saved_size < len(PAYLOAD)
+        assert metadata.exists()
+
+        result = DownloadTask(url, destination, chunk_size=4096).run()
+        assert result.read_bytes() == PAYLOAD
+        assert not partial.exists()
+        assert not metadata.exists()
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
 
 
 def test_http_error_is_reported(tmp_path: Path, server: str) -> None:
