@@ -27,6 +27,7 @@ Direct HTTP(S) downloads can be paused and resumed; pause is cooperative and may
 
 - GTK4/libadwaita queue with progress, cancellation, retry, and a configurable global concurrency limit (1–10 simultaneous downloads; default 3).
 - Configurable destination folder, persisted settings, queue recovery, and ETA display.
+- Optional desktop notifications for completed, failed, and paused downloads, with an Open file action for completed downloads. The desktop notification service controls Do Not Disturb behavior.
 - HTTP(S) transfers with safe filenames, automatic numbered names for collisions, partial files, validator-aware resume, cooperative pause/resume, cancellation, and atomic finalization.
 - Optional FFmpeg-backed HLS/DASH downloads, collision-safe numbered MKV outputs, stream-copy remuxing, progress and cancellation.
 - Media classification, HLS variant and alternate audio/subtitle parsing, and DASH representation metadata extraction.
@@ -61,7 +62,7 @@ mediagrab --cancel 1
 
 `--list` prints JSON rows with a 1-based queue ID, a redacted source URL, and the current status. `--status` prints JSON counts. Queue IDs are positional and can change when items are removed; obtain fresh IDs with `--list` before acting. Pause is available only for direct HTTP(S) downloads; FFmpeg-backed HLS/DASH transfers cannot currently be paused. Resume and retry both requeue an interrupted, paused, failed, cancelled, or detected item. URL inputs are restricted to HTTP(S) and URLs containing embedded credentials are rejected. This command-line channel uses the desktop application's existing single-instance D-Bus activation; a separately versioned public D-Bus object API is not yet exposed.
 
-The desktop Settings and diagnostics dialog lets you change the global simultaneous-download limit from 1 to 10. Raising the limit immediately fills newly available slots; lowering it does not interrupt downloads already running, but no new task starts until the active count falls below the new limit.
+The desktop Settings and diagnostics dialog lets you change the global simultaneous-download limit from 1 to 10 and disable MediaGrab desktop notifications. Raising the limit immediately fills newly available slots; lowering it does not interrupt downloads already running, but no new task starts until the active count falls below the new limit.
 
 ## Inspect a stream manifest
 

@@ -198,6 +198,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         settings = load_settings()
         self.download_directory = Path(settings["download_directory"])
         self.max_concurrent_downloads = int(settings["max_concurrent_downloads"])
+        self.notifications_enabled = bool(settings["notifications_enabled"])
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.set_content(root)
@@ -312,6 +313,9 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         concurrency_row.append(concurrency_label)
         concurrency_row.append(concurrency)
         content.append(concurrency_row)
+        notifications = Gtk.CheckButton(label="Enable desktop notifications")
+        notifications.set_active(bool(settings["notifications_enabled"]))
+        content.append(notifications)
         copy_button = Gtk.Button(label="Copy redacted diagnostics")
         copy_button.add_css_class("flat")
         copy_button.connect("clicked", self._on_copy_diagnostics)
@@ -340,9 +344,11 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                     "download_directory": str(self.download_directory),
                     "diagnostics_level": diagnostics_level,
                     "max_concurrent_downloads": concurrency.get_value_as_int(),
+                    "notifications_enabled": notifications.get_active(),
                 })
                 configure_logging(diagnostics_level)
                 self.max_concurrent_downloads = concurrency.get_value_as_int()
+                self.notifications_enabled = notifications.get_active()
                 self.footer_label.set_text(self._footer_text())
                 self._start_next_downloads()
             except (OSError, ValueError) as exc:
@@ -392,6 +398,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                     "download_directory": str(new_directory),
                     "diagnostics_level": settings["diagnostics_level"],
                     "max_concurrent_downloads": settings["max_concurrent_downloads"],
+                    "notifications_enabled": settings["notifications_enabled"],
                 })
             except (OSError, ValueError) as exc:
                 self.toast_overlay.add_toast(Adw.Toast.new(f"Could not save download folder: {exc}"))
@@ -795,10 +802,41 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 f"Unexpected error ({type(exc).__name__}): {exc}",
             )
 
+    def _send_download_notification(self, row: DownloadRow, state: str, detail: str) -> None:
+        if not self.notifications_enabled or state not in {"Completed", "Failed", "Paused"}:
+            return
+        application = self.get_application()
+        if not isinstance(application, Gio.Application):
+            return
+        if state == "Completed":
+            title = "Download completed"
+            filename = Path(detail).name
+            body = f"Saved {filename}."
+        elif state == "Failed":
+            title = "Download failed"
+            body = "MediaGrab could not finish a download. Open the app to retry."
+        else:
+            title = "Download paused"
+            body = "A download was paused. Open the app to resume it."
+
+        notification = Gio.Notification.new(title)
+        notification.set_body(body)
+        notification.set_default_action("app.show-window")
+        if state == "Completed":
+            target = Path(detail)
+            if target.is_file():
+                notification.add_button_with_target(
+                    "Open file",
+                    "app.open-file",
+                    GLib.Variant.new_string(Gio.File.new_for_path(str(target)).get_uri()),
+                )
+        application.send_notification(f"mediagrab-download-{id(row)}", notification)
+
     def _download_finished(self, row: DownloadRow, state: str, detail: str) -> bool:
         row.is_active = False
         self._active_downloads.discard(row)
         row.finish(state, detail if state == "Failed" else None)
+        self._send_download_notification(row, state, detail)
         if state == "Completed":
             self.toast_overlay.add_toast(Adw.Toast.new(f"Saved: {detail}"))
         elif state == "Failed":
@@ -825,6 +863,24 @@ class MediaGrabApplication(Adw.Application):
             pass
         self.connect("activate", self._on_activate)
         self.connect("command-line", self._on_command_line)
+        show_action = Gio.SimpleAction.new("show-window", None)
+        show_action.connect("activate", lambda *_args: self._on_activate(self))
+        self.add_action(show_action)
+        open_action = Gio.SimpleAction.new("open-file", GLib.VariantType.new("s"))
+        open_action.connect("activate", self._on_open_file)
+        self.add_action(open_action)
+
+    def _on_open_file(self, _action: Gio.SimpleAction, parameter: GLib.Variant | None) -> None:
+        if parameter is None:
+            return
+        uri = parameter.get_string()
+        file = Gio.File.new_for_uri(uri)
+        if not uri.startswith("file://") or not file.query_exists(None):
+            return
+        try:
+            Gio.AppInfo.launch_default_for_uri(uri, None)
+        except GLib.Error as exc:
+            _LOG.warning("Could not open completed download: %s", exc)
 
     def _on_activate(self, app: Adw.Application) -> None:
         window = app.get_active_window()

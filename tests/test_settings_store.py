@@ -24,6 +24,7 @@ def test_save_and_load_settings_atomically(tmp_path: Path) -> None:
         "download_directory": str(selected),
         "diagnostics_level": "INFO",
         "max_concurrent_downloads": 3,
+        "notifications_enabled": True,
     }
     assert not list(path.parent.glob("*.tmp"))
 
@@ -112,3 +113,33 @@ def test_invalid_saved_concurrency_falls_back_to_default(tmp_path: Path) -> None
         "max_concurrent_downloads": 100,
     }), encoding="utf-8")
     assert load_settings(path)["max_concurrent_downloads"] == 3
+
+
+
+def test_notification_preference_is_persisted(tmp_path: Path) -> None:
+    path = tmp_path / "settings.json"
+    save_settings({
+        "download_directory": str(tmp_path / "Downloads"),
+        "diagnostics_level": "INFO",
+        "max_concurrent_downloads": 4,
+        "notifications_enabled": False,
+    }, path)
+    assert load_settings(path)["notifications_enabled"] is False
+
+
+def test_invalid_notification_preference_defaults_on_when_loading(tmp_path: Path) -> None:
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({
+        "download_directory": str(tmp_path / "Downloads"),
+        "notifications_enabled": "false",
+    }), encoding="utf-8")
+    assert load_settings(path)["notifications_enabled"] is True
+
+
+def test_invalid_notification_preference_is_rejected_when_saving(tmp_path: Path) -> None:
+    path = tmp_path / "settings.json"
+    with pytest.raises(ValueError, match="notifications_enabled"):
+        save_settings({
+            "download_directory": str(tmp_path / "Downloads"),
+            "notifications_enabled": "false",
+        }, path)

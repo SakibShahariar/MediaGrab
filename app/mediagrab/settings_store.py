@@ -50,10 +50,14 @@ def load_settings(path: str | Path | None = None) -> dict[str, str | int]:
         or not MIN_MAX_CONCURRENT_DOWNLOADS <= max_concurrent <= MAX_MAX_CONCURRENT_DOWNLOADS
     ):
         max_concurrent = DEFAULT_MAX_CONCURRENT_DOWNLOADS
+    notifications_enabled = raw.get("notifications_enabled", True)
+    if not isinstance(notifications_enabled, bool):
+        notifications_enabled = True
     return {
         "download_directory": str(candidate),
         "diagnostics_level": diagnostics_level.upper(),
         "max_concurrent_downloads": max_concurrent,
+        "notifications_enabled": notifications_enabled,
     }
 
 
@@ -79,12 +83,16 @@ def save_settings(settings: dict[str, str | int], path: str | Path | None = None
             "max_concurrent_downloads must be an integer between "
             f"{MIN_MAX_CONCURRENT_DOWNLOADS} and {MAX_MAX_CONCURRENT_DOWNLOADS}"
         )
+    notifications_enabled = settings.get("notifications_enabled", True)
+    if not isinstance(notifications_enabled, bool):
+        raise ValueError("notifications_enabled must be a boolean")
     settings_path = Path(path) if path is not None else default_settings_path()
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps({
         "download_directory": str(directory),
         "diagnostics_level": diagnostics_level.upper(),
         "max_concurrent_downloads": max_concurrent,
+        "notifications_enabled": notifications_enabled,
     }, indent=2) + "\n"
     fd, temporary_name = tempfile.mkstemp(
         prefix=f".{settings_path.name}.", suffix=".tmp", dir=settings_path.parent
