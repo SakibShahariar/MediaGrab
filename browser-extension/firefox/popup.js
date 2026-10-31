@@ -41,7 +41,7 @@ async function refreshDetectionControls() {
   detectionButton.dataset.enabled = enabled ? "true" : "false";
   detectionButton.textContent = enabled ? "Disable background detection" : "Enable background detection (all sites)";
   detectionStatus.textContent = enabled
-    ? "On for HTTP(S) sites. Only response Content-Type and candidate URLs are observed; request headers and bodies are not read."
+    ? "On for HTTP(S) sites. Private windows are ignored. Only response Content-Type and candidate URLs are observed; request headers and bodies are not read."
     : "Off by default. Enabling requests optional access to all HTTP(S) sites so cross-origin media CDN requests can be seen.";
 }
 
@@ -159,6 +159,10 @@ scanButton.addEventListener("click", async () => {
   try {
     const [tab] = await api.tabs.query({active: true, currentWindow: true});
     if (!tab || typeof tab.id !== "number") throw new Error("No active tab");
+    if (tab.incognito === true) {
+      statusNode.textContent = "Private windows are not scanned. MediaGrab does not retain candidates from private browsing.";
+      return;
+    }
     const [resources, observed] = await Promise.all([scanTab(tab.id), getObservedCandidates(tab.id)]);
     const found = new Map();
     for (const item of observed) {
