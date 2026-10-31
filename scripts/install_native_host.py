@@ -18,6 +18,7 @@ CHROMIUM_CONFIG_DIRS = {
     "chrome": Path("google-chrome"),
     "brave": Path("BraveSoftware") / "Brave-Browser",
     "vivaldi": Path("vivaldi"),
+    "edge": Path("microsoft-edge"),
 }
 CHROMIUM_BROWSERS = tuple(CHROMIUM_CONFIG_DIRS)
 BROWSER_CHOICES = ("firefox", *CHROMIUM_BROWSERS, "both")
@@ -117,7 +118,11 @@ def main(argv: list[str] | None = None) -> int:
         "--host-path",
         help="Absolute path to mediagrab-native-host; defaults to PATH lookup",
     )
-    parser.add_argument("--config-root", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--config-root",
+        type=Path,
+        help="Override the browser config root for custom profiles or sandboxed browsers (absolute path).",
+    )
     parser.add_argument(
         "--uninstall",
         action="store_true",
@@ -131,7 +136,9 @@ def main(argv: list[str] | None = None) -> int:
     host = Path(host_string).expanduser() if host_string else Path("/nonexistent")
     try:
         for browser in browsers:
-            root = args.config_root or browser_config_root(browser)
+            root = args.config_root.expanduser() if args.config_root else browser_config_root(browser)
+            if not root.is_absolute():
+                raise ValueError("--config-root must be an absolute path")
             path = (
                 uninstall(browser, root)
                 if args.uninstall

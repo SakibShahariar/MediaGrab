@@ -13,6 +13,7 @@ from scripts.install_native_host import (
     build_manifest,
     install,
     uninstall,
+    main,
 )
 
 
@@ -62,6 +63,7 @@ def test_chromium_family_registration_requires_and_scopes_extension_id(
         ("chrome", Path("google-chrome")),
         ("brave", Path("BraveSoftware") / "Brave-Browser"),
         ("vivaldi", Path("vivaldi")),
+        ("edge", Path("microsoft-edge")),
     ],
 )
 def test_browser_config_roots_use_expected_linux_locations(
@@ -114,3 +116,35 @@ def test_browser_paths_are_distinct(tmp_path: Path, monkeypatch) -> None:
         for browser in browsers
     }
     assert len(paths) == len(browsers)
+
+
+
+def test_cli_supports_edge_and_custom_chromium_profile_root(tmp_path: Path, capsys) -> None:
+    host = executable(tmp_path / "mediagrab-native-host")
+    profile_root = tmp_path / "custom-edge-profile"
+    result = main([
+        "--browser", "edge",
+        "--config-root", str(profile_root),
+        "--host-path", str(host),
+        "--extension-id", "a" * 32,
+    ])
+    manifest_path = profile_root / "NativeMessagingHosts" / f"{HOST_NAME}.json"
+
+    assert result == 0
+    assert json.loads(manifest_path.read_text(encoding="utf-8"))["allowed_origins"] == [
+        f"chrome-extension://{'a' * 32}/"
+    ]
+    assert "Installed edge registration" in capsys.readouterr().out
+
+
+def test_cli_rejects_relative_custom_profile_root(tmp_path: Path, capsys) -> None:
+    host = executable(tmp_path / "mediagrab-native-host")
+    result = main([
+        "--browser", "chromium",
+        "--config-root", "relative-profile",
+        "--host-path", str(host),
+        "--extension-id", "a" * 32,
+    ])
+
+    assert result == 1
+    assert "--config-root must be an absolute path" in capsys.readouterr().err
