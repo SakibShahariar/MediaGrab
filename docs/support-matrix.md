@@ -42,5 +42,6 @@ The current suite is site-independent and uses fixtures, local HTTP servers, and
 - `tests/test_media_stream.py`: FFmpeg command construction, stream finalization, cancellation, error handling, and optional external tracks using a fake process.
 - `tests/test_downloader.py`: local HTTP transfers, resume behavior, pause/cancel, malformed responses, and safe finalization.
 - `tests/test_native_host.py` and `tests/test_browser_popup.py`: native-messaging validation and static browser-extension contracts.
+- `tests/browser-extension-background.test.cjs`: Node-based Firefox/Chromium background API harness covering response classification, per-tab deduplication, navigation cleanup, permission revocation, and context-menu handoff.
 
 These tests establish core behavior in controlled environments. They do not replace real-world HLS/DASH sample validation or browser/GTK end-to-end testing. See the open validation work for [real-world HLS samples](https://github.com/SakibShahariar/MediaGrab/issues/3), [advanced DASH cases](https://github.com/SakibShahariar/MediaGrab/issues/4), and [browser handoff testing](https://github.com/SakibShahariar/MediaGrab/issues/14).

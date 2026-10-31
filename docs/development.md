@@ -23,6 +23,8 @@ mediagrab
 python -m pytest -v
 ```
 
+Node.js is optional for development. When installed, `pytest` also runs a mocked Firefox/Chromium background API harness; run it directly with `node --test tests/browser-extension-background.test.cjs`.
+
 ## Inspect HLS/DASH quality metadata
 
 In the desktop app, choose **Add URL → Inspect media…** to fetch a manifest in a background worker and show its declared HLS video variants. Selecting a listed HLS variant queues that video playlist. Where the master manifest declares external audio/subtitle playlists, the dialog offers optional selectors; FFmpeg opens the chosen inputs and stream-copies the selected audio and subtitle streams into the MKV. These selections are persisted with unfinished queue entries and restored for manual retry. Use tracks belonging to the selected variant’s audio/subtitle groups; not every manifest declares compatible external tracks.
