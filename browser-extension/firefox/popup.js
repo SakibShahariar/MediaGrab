@@ -38,6 +38,7 @@ function priorityFor(kind) {
 
 async function refreshDetectionControls() {
   const enabled = await api.permissions.contains({origins: OPTIONAL_ORIGINS});
+  detectionButton.dataset.enabled = enabled ? "true" : "false";
   detectionButton.textContent = enabled ? "Disable background detection" : "Enable background detection (all sites)";
   detectionStatus.textContent = enabled
     ? "On for HTTP(S) sites. Only response Content-Type and candidate URLs are observed; request headers and bodies are not read."
@@ -47,7 +48,7 @@ async function refreshDetectionControls() {
 detectionButton.addEventListener("click", async () => {
   detectionButton.disabled = true;
   try {
-    const enabled = await api.permissions.contains({origins: OPTIONAL_ORIGINS});
+    const enabled = detectionButton.dataset.enabled === "true";
     if (enabled) {
       await api.permissions.remove({origins: OPTIONAL_ORIGINS});
       await api.storage.session.remove(STORAGE_KEY);

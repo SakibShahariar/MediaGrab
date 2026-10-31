@@ -66,6 +66,7 @@ def test_popup_exposes_explicit_background_permission_control() -> None:
     assert 'id="toggle-detection"' in html
     assert 'id="detection-status"' in html
     assert "api.permissions.request" in source
+    assert 'detectionButton.dataset.enabled === "true"' in source
     assert "api.permissions.remove" in source
     assert "api.storage.session.get" in source
     assert "Observed network response" in source
