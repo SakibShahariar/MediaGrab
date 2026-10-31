@@ -59,7 +59,7 @@ python scripts/install_native_host.py --browser vivaldi --extension-id YOUR_32_L
 
 For Firefox and Chromium together, `--browser both` registers both default locations; supply the Chromium extension ID as well. The installer writes user-level manifests and validates the executable path and extension ID. It respects `XDG_CONFIG_HOME` for Chromium-family browser configuration directories.
 
-See [Browser Native Host Installer](browser-native-host-installer.md) for exact paths, removal commands, and package limitations.
+See [Browser Native Host Installer](browser-native-host-installer.md) for exact paths, removal commands, and package limitations. See the [support matrix](support-matrix.md) for implemented formats, test evidence, and known gaps.
 
 ### Use the extension
 

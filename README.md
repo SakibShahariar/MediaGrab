@@ -33,6 +33,7 @@ Direct HTTP(S) downloads can be paused and resumed; pause is cooperative and may
 - **Manifest inspection and track selection:** fetches bounded HLS/DASH manifests, lists HLS variants and alternate audio/subtitle playlists, and offers optional external audio/subtitle selection. Selected streams are muxed into MKV with FFmpeg stream copy; track choices survive queue recovery and retry.
 - Browser popup scans page-visible resource timing, media elements, subtitle tracks, and media-looking links. Handoffs are user-triggered.
 - Automated tests run on Python 3.11–3.14.
+- A [support matrix](docs/support-matrix.md) distinguishes tested core behavior from outstanding real-world and browser validation.
 
 ## Browser integration
 
