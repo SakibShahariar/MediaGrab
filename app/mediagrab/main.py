@@ -22,7 +22,7 @@ from mediagrab.task_factory import create_download_task
 from mediagrab.queue_store import load_queue, save_queue
 from mediagrab.settings_store import load_settings, save_settings
 from mediagrab.diagnostics import configure_logging, get_logger, log_event, read_diagnostics
-from mediagrab.url_utils import redact_url
+from mediagrab.url_utils import is_valid_http_url, redact_url
 from mediagrab.cli import parse_command
 
 
@@ -512,18 +512,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         if not url:
             self.toast_overlay.add_toast(Adw.Toast.new("The clipboard does not contain text."))
             return
-        parsed = urlparse(url)
-        try:
-            _ = parsed.port
-        except ValueError:
-            self.toast_overlay.add_toast(Adw.Toast.new("The clipboard does not contain a valid HTTP(S) URL."))
-            return
-        if (
-            parsed.scheme not in {"http", "https"}
-            or not parsed.hostname
-            or parsed.username is not None
-            or parsed.password is not None
-        ):
+        if not is_valid_http_url(url):
             self.toast_overlay.add_toast(Adw.Toast.new("The clipboard does not contain a valid credential-free HTTP(S) URL."))
             return
         entry.set_text(url)
@@ -536,9 +525,8 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             return
 
         url = entry.get_text().strip()
-        parsed = urlparse(url)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            self.toast_overlay.add_toast(Adw.Toast.new("Enter a valid HTTP(S) URL."))
+        if not is_valid_http_url(url):
+            self.toast_overlay.add_toast(Adw.Toast.new("Enter a valid credential-free HTTP(S) URL."))
             return
 
         if response == "inspect":
@@ -548,9 +536,8 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
     def inspect_media_url(self, url: str) -> None:
         """Inspect a manifest off the GTK thread, then offer available HLS qualities."""
-        parsed = urlparse(url)
-        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-            self.toast_overlay.add_toast(Adw.Toast.new("Enter a valid HTTP(S) URL."))
+        if not is_valid_http_url(url):
+            self.toast_overlay.add_toast(Adw.Toast.new("Enter a valid credential-free HTTP(S) URL."))
             return
         if parsed.username is not None or parsed.password is not None:
             self.toast_overlay.add_toast(Adw.Toast.new("URLs with embedded credentials are not accepted."))
@@ -663,12 +650,8 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
     def add_candidate_url(self, url: str) -> bool:
         """Add a browser-detected URL to the review inbox without starting it."""
-        parsed = urlparse(url)
-        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-            self.toast_overlay.add_toast(Adw.Toast.new("Enter a valid HTTP(S) URL."))
-            return False
-        if parsed.username is not None or parsed.password is not None:
-            self.toast_overlay.add_toast(Adw.Toast.new("URLs with embedded credentials are not accepted."))
+        if not is_valid_http_url(url):
+            self.toast_overlay.add_toast(Adw.Toast.new("Enter a valid credential-free HTTP(S) URL."))
             return False
         if any(row.url == url and row.status_label.get_text() == "Detected" for row in self._rows):
             self.toast_overlay.add_toast(Adw.Toast.new("This media candidate is already waiting for review."))

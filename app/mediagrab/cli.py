@@ -5,7 +5,7 @@ tested in headless environments.
 """
 from __future__ import annotations
 
-from urllib.parse import urlsplit
+from mediagrab.url_utils import is_valid_http_url
 
 _USAGE = (
     "Usage: mediagrab [--add-url|--add-candidate HTTP(S)_URL] | "
@@ -24,20 +24,9 @@ def parse_command(args: list[str]) -> tuple[str, str | None]:
 
     option, value = args
     if option in {"--add-url", "--add-candidate"}:
-        try:
-            parsed = urlsplit(value)
-            _ = parsed.port
-        except ValueError as exc:
-            raise ValueError("MediaGrab accepts only valid HTTP(S) URLs.") from exc
-        if (
-            parsed.scheme not in {"http", "https"}
-            or not parsed.hostname
-            or parsed.username is not None
-            or parsed.password is not None
-            or any(ord(char) < 32 for char in value)
-        ):
+        if not is_valid_http_url(value):
             raise ValueError(
-                "MediaGrab accepts only valid HTTP(S) URLs without embedded credentials."
+                "MediaGrab accepts only valid credential-free HTTP(S) URLs."
             )
         return option[2:], value
 
