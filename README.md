@@ -34,6 +34,10 @@ Direct HTTP(S) downloads can be paused and resumed; pause is cooperative and may
 - Browser popup scans page-visible resource timing, media elements, subtitle tracks, and media-looking links. Handoffs are user-triggered.
 - Automated tests run on Python 3.11–3.14.
 
+## Browser integration
+
+The Firefox and Chromium-family extensions support manual link/page handoff and user-triggered current-tab scanning. Install the extension and register the native host using the [browser installation guide](docs/browser-native-host-installer.md). Automatic background request observation is not implemented.
+
 ## Inspect a stream manifest
 
 After installing the project, run:
