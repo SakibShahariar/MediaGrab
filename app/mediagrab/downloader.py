@@ -31,6 +31,9 @@ class DownloadProgress:
 
 ProgressCallback = Callable[[DownloadProgress], None]
 
+# Keep worker-to-GTK progress scheduling to roughly 6–7 updates per second.
+PROGRESS_UPDATE_INTERVAL = 0.15
+
 
 class DownloadError(Exception):
     """Raised when a download cannot be completed."""
@@ -168,6 +171,7 @@ class DownloadTask:
             raise DownloadError("Download cancelled before start")
 
         started = time.monotonic()
+        last_progress_at: float | None = None
         received = offset
         total: int | None = None
         self._set_state("downloading")
@@ -287,8 +291,12 @@ class DownloadTask:
                             output.write(chunk)
                             received += len(chunk)
                             segment_received += len(chunk)
-                            elapsed = max(time.monotonic() - started, 0.001)
-                            if on_progress is not None:
+                            now = time.monotonic()
+                            elapsed = max(now - started, 0.001)
+                            if on_progress is not None and (
+                                last_progress_at is None
+                                or now - last_progress_at >= PROGRESS_UPDATE_INTERVAL
+                            ):
                                 on_progress(
                                     DownloadProgress(
                                         received=received,
@@ -297,6 +305,7 @@ class DownloadTask:
                                         state="downloading",
                                     )
                                 )
+                                last_progress_at = now
                         output.flush()
                         os.fsync(output.fileno())
 

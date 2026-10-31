@@ -671,3 +671,54 @@ def test_pause_preserves_partial_and_new_task_resumes(tmp_path: Path) -> None:
 def test_rejects_malformed_or_credentialed_urls(tmp_path: Path, url: str) -> None:
     with pytest.raises(ValueError, match="valid HTTP|embedded credentials"):
         DownloadTask(url, tmp_path)
+
+def test_progress_callbacks_are_throttled_and_completion_is_always_reported(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from types import SimpleNamespace
+
+    from mediagrab.downloader import PROGRESS_UPDATE_INTERVAL
+
+    payload = b"x" * 1000
+    clock = [0.0]
+
+    class ChunkedResponse:
+        status = 200
+        headers = {"Content-Length": str(len(payload))}
+
+        def __init__(self) -> None:
+            self.offset = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args: object) -> bool:
+            return False
+
+        def read(self, size: int) -> bytes:
+            clock[0] += 0.01
+            chunk = payload[self.offset : self.offset + size]
+            self.offset += len(chunk)
+            return chunk
+
+    monkeypatch.setattr(
+        "mediagrab.downloader.urllib.request.urlopen",
+        lambda *_args, **_kwargs: ChunkedResponse(),
+    )
+    monkeypatch.setattr(
+        "mediagrab.downloader.time", SimpleNamespace(monotonic=lambda: clock[0])
+    )
+
+    progress = []
+    task = DownloadTask("https://example.test/payload.bin", tmp_path, chunk_size=10)
+    result = task.run(progress.append)
+
+    intermediate = [item for item in progress if item.state == "downloading"]
+    assert PROGRESS_UPDATE_INTERVAL == 0.15
+    assert 5 <= len(intermediate) <= 8
+    assert intermediate[0].received == 10
+    assert progress[-1].state == "completed"
+    assert progress[-1].received == len(payload)
+    assert progress[-1].total == len(payload)
+    assert result.read_bytes() == payload
+
