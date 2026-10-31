@@ -40,6 +40,23 @@ Direct HTTP(S) downloads can be paused and resumed; pause is cooperative and may
 
 The Firefox and Chromium-family extensions support manual link/page handoff, user-triggered current-tab scanning, and optional background response observation after the user grants all-sites HTTP(S) permission. Detected candidates can be sent to the persistent in-app review inbox without starting a download. Install the extension and register the native host using the [browser installation guide](docs/browser-native-host-installer.md).
 
+## Command-line control
+
+The `mediagrab` command forwards operations to the running desktop application through its single-instance `GApplication` command-line channel (D-Bus activation). It can add URLs, inspect the current in-memory queue, and control queue items:
+
+```fish
+mediagrab --add-url 'https://example.test/video.mp4'
+mediagrab --add-candidate 'https://example.test/master.m3u8'
+mediagrab --list
+mediagrab --status
+mediagrab --pause 1
+mediagrab --resume 1
+mediagrab --retry 1
+mediagrab --cancel 1
+```
+
+`--list` prints JSON rows with a 1-based queue ID, a redacted source URL, and the current status. `--status` prints JSON counts. Queue IDs are positional and can change when items are removed; obtain fresh IDs with `--list` before acting. Pause is available only for direct HTTP(S) downloads; FFmpeg-backed HLS/DASH transfers cannot currently be paused. Resume and retry both requeue an interrupted, paused, failed, cancelled, or detected item. URL inputs are restricted to HTTP(S) and URLs containing embedded credentials are rejected. This command-line channel uses the desktop application's existing single-instance D-Bus activation; a separately versioned public D-Bus object API is not yet exposed.
+
 ## Inspect a stream manifest
 
 After installing the project, run:

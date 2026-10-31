@@ -22,6 +22,7 @@ from mediagrab.queue_store import load_queue, save_queue
 from mediagrab.settings_store import load_settings, save_settings
 from mediagrab.diagnostics import configure_logging, get_logger, log_event, read_diagnostics
 from mediagrab.url_utils import redact_url
+from mediagrab.cli import parse_command
 
 
 APP_ID = "io.github.SakibShahariar.MediaGrab"
@@ -794,30 +795,80 @@ class MediaGrabApplication(Adw.Application):
 
     def _on_command_line(self, app: Adw.Application, command_line: Gio.ApplicationCommandLine) -> int:
         args = command_line.get_arguments()[1:]
-        action: str | None = None
-        url: str | None = None
-        if args:
-            if len(args) != 2 or args[0] not in {"--add-url", "--add-candidate"}:
-                command_line.print("Usage: mediagrab [--add-url|--add-candidate HTTP(S)_URL]\\n")
-                return 2
-            action, url = args
-            parsed = urlparse(url)
-            if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-                command_line.print("MediaGrab accepts only valid HTTP(S) URLs.\\n")
-                return 2
-            if parsed.username is not None or parsed.password is not None:
-                command_line.print("URLs containing embedded credentials are not accepted.\\n")
-                return 2
+        try:
+            action, argument = parse_command(args)
+        except ValueError as exc:
+            command_line.print(f"{exc}\\n")
+            return 2
+
+        if action in {"list", "status"}:
+            window = app.get_active_window()
+            if not isinstance(window, MediaGrabWindow):
+                window = MediaGrabWindow(application=app)
+            rows = [
+                {
+                    "id": index,
+                    "url": row._source_url,
+                    "status": row.status_label.get_text(),
+                }
+                for index, row in enumerate(window._rows, start=1)
+            ]
+            if action == "list":
+                command_line.print(json.dumps(rows, ensure_ascii=False) + "\\n")
+            else:
+                counts = {
+                    "total": len(rows),
+                    "active": sum(row.is_active for row in window._rows),
+                    "queued": sum(row.status_label.get_text() == "Queued" for row in window._rows),
+                    "completed": sum(row.status_label.get_text() == "Completed" for row in window._rows),
+                    "failed": sum(row.status_label.get_text() == "Failed" for row in window._rows),
+                }
+                command_line.print(json.dumps(counts, ensure_ascii=False) + "\\n")
+            return 0
+
         self._on_activate(app)
         window = app.get_active_window()
-        if url is not None and isinstance(window, MediaGrabWindow):
+        if not isinstance(window, MediaGrabWindow):
+            command_line.print("Could not access the MediaGrab window.\\n")
+            return 1
+
+        if action in {"add-url", "add-candidate"}:
+            assert argument is not None
             accepted = (
-                window.add_candidate_url(url)
-                if action == "--add-candidate"
-                else window.add_download_url(url)
+                window.add_candidate_url(argument)
+                if action == "add-candidate"
+                else window.add_download_url(argument)
             )
-            if not accepted:
+            return 0 if accepted else 2
+
+        assert argument is not None
+        row_id = int(argument)
+        if row_id > len(window._rows):
+            command_line.print(f"No queue item with ID {row_id}.\\n")
+            return 2
+        row = window._rows[row_id - 1]
+        if action == "pause":
+            if not isinstance(row.task, DownloadTask):
+                command_line.print("Pause is only supported for direct HTTP downloads.\\n")
                 return 2
+            if row not in window._pending_downloads and row not in window._active_downloads:
+                command_line.print(f"Queue item {row_id} is not active or queued.\\n")
+                return 2
+            window.pause_download(row)
+        elif action == "cancel":
+            if row not in window._pending_downloads and row not in window._active_downloads:
+                command_line.print(f"Queue item {row_id} is not active or queued.\\n")
+                return 2
+            window.cancel_download(row)
+        elif action in {"resume", "retry"}:
+            if row in window._pending_downloads or row in window._active_downloads:
+                command_line.print(f"Queue item {row_id} is already active or queued.\\n")
+                return 2
+            if row.status_label.get_text() not in {"Failed", "Cancelled", "Interrupted", "Paused", "Detected"}:
+                command_line.print(f"Queue item {row_id} cannot be resumed from its current state.\\n")
+                return 2
+            window.retry_download(row)
+        command_line.print(f"{action} requested for queue item {row_id}.\\n")
         return 0
 
 
