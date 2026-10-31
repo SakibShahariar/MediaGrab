@@ -118,10 +118,14 @@ def test_native_host_process_frames_and_hands_off_to_desktop(
     capture_path = tmp_path / "arguments.json"
     executable = binary_directory / "mediagrab"
     executable.write_text(
-        "#!/usr/bin/env python3\\n"
-        "import json, os, sys\\n"
-        "with open(os.environ['MEDIAGRAB_CAPTURE'], 'w', encoding='utf-8') as output:\\n"
-        "    json.dump(sys.argv[1:], output)\\n",
+        """#!/usr/bin/env python3
+import json
+import os
+import sys
+
+with open(os.environ["MEDIAGRAB_CAPTURE"], "w", encoding="utf-8") as output:
+    json.dump(sys.argv[1:], output)
+""",
         encoding="utf-8",
     )
     executable.chmod(0o755)
