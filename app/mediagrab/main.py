@@ -366,7 +366,10 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 return
             new_directory = Path(path)
             try:
-                save_settings({"download_directory": str(new_directory)})
+                save_settings({
+                    "download_directory": str(new_directory),
+                    "diagnostics_level": load_settings()["diagnostics_level"],
+                })
             except (OSError, ValueError) as exc:
                 self.toast_overlay.add_toast(Adw.Toast.new(f"Could not save download folder: {exc}"))
                 return
