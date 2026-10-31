@@ -105,8 +105,8 @@ async function removeObservedCandidate(tabId, url) {
   await api.storage.session.set({[STORAGE_KEY]: candidates.filter((item) => item.tabId !== tabId || item.url !== url)});
 }
 
-function sendNative(url) {
-  const message = {version: 1, type: "add-url", url};
+function sendNative(url, type = "add-candidate") {
+  const message = {version: 1, type, url};
   if (typeof browser !== "undefined") return browser.runtime.sendNativeMessage(HOST_NAME, message);
   return new Promise((resolve, reject) => {
     chrome.runtime.sendNativeMessage(HOST_NAME, message, (response) => {
@@ -130,17 +130,17 @@ function addCandidate(url, item, tabId) {
   const parsed = new URL(url);
   display.textContent = parsed.host + parsed.pathname;
   const button = document.createElement("button");
-  button.textContent = "Send to MediaGrab";
+  button.textContent = "Review in MediaGrab";
   button.addEventListener("click", async () => {
     button.disabled = true;
     button.textContent = "Sending…";
     try {
-      const response = await sendNative(url);
+      const response = await sendNative(url, "add-candidate");
       if (!response || response.ok !== true) throw new Error((response && response.error) || "MediaGrab rejected the URL");
       if (item.observed) removeObservedCandidate(tabId, url).catch((error) => {
         console.error("MediaGrab candidate cleanup failed:", error.message);
       });
-      button.textContent = "Added";
+      button.textContent = "Sent for review";
     } catch (error) {
       button.disabled = false;
       button.textContent = "Retry handoff";

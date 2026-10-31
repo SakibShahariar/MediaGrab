@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 OPTIONAL_URL_FIELDS = ("audio_url", "subtitle_url")
+QueueEntry = dict[str, str | bool]
 
 
 def default_queue_path() -> Path:
@@ -46,7 +47,7 @@ def _fsync_directory(directory: Path) -> None:
         os.close(descriptor)
 
 
-def load_queue(path: str | Path | None = None) -> list[dict[str, str]]:
+def load_queue(path: str | Path | None = None) -> list[QueueEntry]:
     """Load valid entries, retaining optional track URLs and accepting old URL-only state."""
     queue_path = Path(path) if path is not None else default_queue_path()
     try:
@@ -67,11 +68,13 @@ def load_queue(path: str | Path | None = None) -> list[dict[str, str]]:
                 continue
             if _valid_http_url(value):
                 entry[field] = value
+        if item.get("candidate") is True:
+            entry["candidate"] = True
         entries.append(entry)
     return entries
 
 
-def save_queue(entries: list[dict[str, str]], path: str | Path | None = None) -> None:
+def save_queue(entries: list[QueueEntry], path: str | Path | None = None) -> None:
     """Atomically save unfinished entries, preserving valid optional track selections."""
     queue_path = Path(path) if path is not None else default_queue_path()
     queue_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -84,6 +87,8 @@ def save_queue(entries: list[dict[str, str]], path: str | Path | None = None) ->
             value = item.get(field)
             if value and _valid_http_url(value):
                 entry[field] = value
+        if item.get("candidate") is True:
+            entry["candidate"] = True
         normalized.append(entry)
     payload = json.dumps(normalized, ensure_ascii=False, indent=2) + "\n"
     fd, temporary_name = tempfile.mkstemp(

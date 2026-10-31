@@ -154,3 +154,18 @@ def test_failed_atomic_replace_preserves_previous_queue_and_cleans_temp(
         item.name.startswith(f".{path.name}.") and item.name.endswith(".tmp")
         for item in path.parent.iterdir()
     )
+
+
+def test_candidate_review_state_survives_queue_persistence(tmp_path: Path) -> None:
+    path = tmp_path / "queue.json"
+    entries = [
+        {"url": "https://example.test/video.m3u8", "candidate": True},
+        {"url": "https://example.test/file.mp4", "candidate": False},
+        {"url": "https://example.test/other.mp4", "candidate": "yes"},
+    ]
+    save_queue(entries, path)
+    assert load_queue(path) == [
+        {"url": "https://example.test/video.m3u8", "candidate": True},
+        {"url": "https://example.test/file.mp4"},
+        {"url": "https://example.test/other.mp4"},
+    ]

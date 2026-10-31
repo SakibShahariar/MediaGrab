@@ -2,7 +2,7 @@
 
 A native Linux download manager focused on reliable browser-to-desktop media capture, inspired by the workflow of Internet Download Manager (IDM).
 
-> **Status:** Early implementation. The GTK4/libadwaita queue, HTTP(S) download core, browser handoff prototype, and HLS/DASH manifest inspection are implemented. Optional background response observation is now available in the browser popup; detected candidates are reviewed there before handoff. An in-app candidate inbox remains unfinished; the app now offers an in-app HLS variant chooser when a manifest is inspected. Direct-file downloads work natively; HLS/DASH manifest URLs are routed to an optional FFmpeg stream adapter.
+> **Status:** Early implementation. The GTK4/libadwaita queue, HTTP(S) download core, browser handoff prototype, and HLS/DASH manifest inspection are implemented. Optional background response observation is available in the browser popup. Users can review detected candidates there and send them to MediaGrab's persistent in-app review inbox; candidates do not start downloading until explicitly approved. The app also offers an HLS variant chooser when a manifest is inspected. Direct-file downloads work natively; HLS/DASH manifest URLs are routed to an optional FFmpeg stream adapter.
 
 ## Goals
 
@@ -53,7 +53,7 @@ The report shows available HLS resolutions and bitrates, alternate audio/subtitl
 ## Next milestones
 
 1. End-to-end browser handoff validation in Firefox and Chromium.
-2. Add an in-app candidate inbox and end-to-end request-observation tests.
+2. Complete real-browser request-observation and in-app review-inbox end-to-end testing.
 3. Add structured diagnostics and packaging.
 
 ## Development principles

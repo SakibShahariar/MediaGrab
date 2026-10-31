@@ -81,6 +81,20 @@ class DownloadRow(Adw.ActionRow):
         self.retry_button.connect("clicked", self._on_retry)
         self.add_suffix(self.retry_button)
 
+        self.candidate_action_button = Gtk.Button.new_from_icon_name("media-playback-start-symbolic")
+        self.candidate_action_button.set_tooltip_text("Download detected media")
+        self.candidate_action_button.add_css_class("flat")
+        self.candidate_action_button.set_visible(False)
+        self.candidate_action_button.connect("clicked", self._on_candidate_action)
+        self.add_suffix(self.candidate_action_button)
+
+        self.dismiss_candidate_button = Gtk.Button.new_from_icon_name("user-trash-symbolic")
+        self.dismiss_candidate_button.set_tooltip_text("Dismiss detected media")
+        self.dismiss_candidate_button.add_css_class("flat")
+        self.dismiss_candidate_button.set_visible(False)
+        self.dismiss_candidate_button.connect("clicked", self._on_dismiss_candidate)
+        self.add_suffix(self.dismiss_candidate_button)
+
         self.pause_button = Gtk.Button.new_from_icon_name("media-playback-pause-symbolic")
         self.pause_button.set_tooltip_text("Pause direct download")
         self.pause_button.add_css_class("flat")
@@ -97,6 +111,15 @@ class DownloadRow(Adw.ActionRow):
     def _on_retry(self, _button: Gtk.Button) -> None:
         self.window.retry_download(self)
 
+    def _on_candidate_action(self, _button: Gtk.Button) -> None:
+        if isinstance(self.task, DownloadTask):
+            self.window.retry_download(self)
+        else:
+            self.window.inspect_media_url(self.url)
+
+    def _on_dismiss_candidate(self, _button: Gtk.Button) -> None:
+        self.window.dismiss_candidate(self)
+
     def prepare_retry(self, task: DownloadTask) -> None:
         self.task = task
         self.status_label.set_text("Queued")
@@ -107,6 +130,9 @@ class DownloadRow(Adw.ActionRow):
         self.pause_button.set_visible(isinstance(task, DownloadTask))
         self.pause_button.set_sensitive(True)
         self.retry_button.set_visible(False)
+        self.candidate_action_button.set_visible(False)
+        self.dismiss_candidate_button.set_visible(False)
+        self.progress.set_visible(True)
         self.set_subtitle(self._source_url)
 
     def _on_cancel(self, _button: Gtk.Button) -> None:
@@ -141,7 +167,15 @@ class DownloadRow(Adw.ActionRow):
         self.cancel_button.set_visible(False)
         self.pause_button.set_sensitive(False)
         self.pause_button.set_visible(False)
+        is_candidate = state == "Detected"
         self.retry_button.set_visible(state in {"Failed", "Cancelled", "Interrupted", "Paused"})
+        self.candidate_action_button.set_visible(is_candidate)
+        self.dismiss_candidate_button.set_visible(is_candidate)
+        self.progress.set_visible(not is_candidate)
+        if is_candidate:
+            self.candidate_action_button.set_tooltip_text(
+                "Inspect stream choices" if not isinstance(self.task, DownloadTask) else "Download detected media"
+            )
         if state == "Failed" and message:
             self.set_subtitle(f"{self._source_url} · {message}")
         elif state in {"Cancelled", "Interrupted", "Paused"}:
@@ -233,7 +267,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
         footer = Gtk.Label(
             label=f"Up to {MAX_CONCURRENT_DOWNLOADS} simultaneous downloads · "
-            "HLS/DASH streams use FFmpeg · automatic capture is in development"
+            "HLS/DASH streams use FFmpeg · browser detections wait for your review"
         )
         footer.add_css_class("dim-label")
         footer.add_css_class("caption")
@@ -282,7 +316,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             except ValueError:
                 continue
             row = DownloadRow(self, url, task, audio_url=entry.get("audio_url"), subtitle_url=entry.get("subtitle_url"))
-            row.finish("Interrupted")
+            row.finish("Detected" if entry.get("candidate") is True else "Interrupted")
             self._rows.append(row)
             self.list_box.append(row)
         self._update_count()
@@ -315,11 +349,19 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
     def _persist_queue(self) -> None:
         # Completed items are history only; unfinished items are restored as retryable.
-        entries = [
-            {"url": row.url, **({"audio_url": row.audio_url} if row.audio_url else {}), **({"subtitle_url": row.subtitle_url} if row.subtitle_url else {})}
-            for row in self._rows
-            if row.status_label.get_text() != "Completed"
-        ]
+        entries: list[dict[str, str | bool]] = []
+        for row in self._rows:
+            state = row.status_label.get_text()
+            if state == "Completed":
+                continue
+            entry: dict[str, str | bool] = {
+                "url": row.url,
+                **({"audio_url": row.audio_url} if row.audio_url else {}),
+                **({"subtitle_url": row.subtitle_url} if row.subtitle_url else {}),
+            }
+            if state == "Detected":
+                entry["candidate"] = True
+            entries.append(entry)
         try:
             save_queue(entries)
         except OSError as exc:
@@ -454,7 +496,8 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                             self.toast_overlay.add_toast(Adw.Toast.new("Those subtitles do not belong to the selected video variant."))
                             return
                         subtitle_url = selected_subtitle.url
-                self.add_download_url(chosen_video, audio_url=audio_url, subtitle_url=subtitle_url)
+                if self.add_download_url(chosen_video, audio_url=audio_url, subtitle_url=subtitle_url):
+                    self.dismiss_candidate_by_url(original_url)
 
         audio_choices = [item for item in result.renditions if item.kind == "audio" and item.url]
         subtitle_choices = [item for item in result.renditions if item.kind == "subtitles" and item.url]
@@ -480,6 +523,49 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         bitrate = " · " + str(round(variant.bandwidth / 1000)) + " kb/s" if variant.bandwidth else ""
         codecs = " · " + variant.codecs if variant.codecs else ""
         return resolution + bitrate + codecs
+
+    def add_candidate_url(self, url: str) -> bool:
+        """Add a browser-detected URL to the review inbox without starting it."""
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            self.toast_overlay.add_toast(Adw.Toast.new("Enter a valid HTTP(S) URL."))
+            return False
+        if parsed.username is not None or parsed.password is not None:
+            self.toast_overlay.add_toast(Adw.Toast.new("URLs with embedded credentials are not accepted."))
+            return False
+        if any(row.url == url and row.status_label.get_text() == "Detected" for row in self._rows):
+            self.toast_overlay.add_toast(Adw.Toast.new("This media candidate is already waiting for review."))
+            return True
+        try:
+            task = create_download_task(url, self.download_directory)
+        except ValueError as exc:
+            self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
+            return False
+        row = DownloadRow(self, url, task)
+        row.finish("Detected")
+        self._rows.append(row)
+        self.list_box.append(row)
+        self._update_count()
+        self._persist_queue()
+        self.toast_overlay.add_toast(Adw.Toast.new("Media candidate added for review."))
+        return True
+
+    def dismiss_candidate(self, row: DownloadRow) -> None:
+        if row not in self._rows or row.status_label.get_text() != "Detected":
+            return
+        self.list_box.remove(row)
+        self._rows.remove(row)
+        self._update_count()
+        self._persist_queue()
+        self.toast_overlay.add_toast(Adw.Toast.new("Media candidate dismissed."))
+
+    def dismiss_candidate_by_url(self, url: str) -> None:
+        row = next(
+            (item for item in self._rows if item.url == url and item.status_label.get_text() == "Detected"),
+            None,
+        )
+        if row is not None:
+            self.dismiss_candidate(row)
 
     def add_download_url(self, url: str, *, audio_url: str | None = None, subtitle_url: str | None = None) -> bool:
         """Validate and enqueue a URL from either the UI or browser bridge."""
@@ -622,12 +708,13 @@ class MediaGrabApplication(Adw.Application):
 
     def _on_command_line(self, app: Adw.Application, command_line: Gio.ApplicationCommandLine) -> int:
         args = command_line.get_arguments()[1:]
+        action: str | None = None
         url: str | None = None
         if args:
-            if len(args) != 2 or args[0] != "--add-url":
-                command_line.print("Usage: mediagrab [--add-url HTTP(S)_URL]\\n")
+            if len(args) != 2 or args[0] not in {"--add-url", "--add-candidate"}:
+                command_line.print("Usage: mediagrab [--add-url|--add-candidate HTTP(S)_URL]\\n")
                 return 2
-            url = args[1]
+            action, url = args
             parsed = urlparse(url)
             if parsed.scheme not in {"http", "https"} or not parsed.hostname:
                 command_line.print("MediaGrab accepts only valid HTTP(S) URLs.\\n")
@@ -638,7 +725,12 @@ class MediaGrabApplication(Adw.Application):
         self._on_activate(app)
         window = app.get_active_window()
         if url is not None and isinstance(window, MediaGrabWindow):
-            if not window.add_download_url(url):
+            accepted = (
+                window.add_candidate_url(url)
+                if action == "--add-candidate"
+                else window.add_download_url(url)
+            )
+            if not accepted:
                 return 2
         return 0
 

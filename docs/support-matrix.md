@@ -20,7 +20,7 @@ This matrix describes behavior implemented and covered by the repository's curre
 | Chromium-family | Shared extension code supports Chromium, Chrome, Brave, and Vivaldi extension APIs where compatible. | Native host registration paths are documented for native Linux packages; Brave Flatpak has not been validated. |
 | Current-tab scan | User clicks **Scan this tab**; the popup inspects page-visible resource timing entries, media elements, subtitle tracks, and media-looking links. | Blob URLs, opaque requests, and protected resources may not be usable. |
 | Background observation | Optional opt-in `webRequest.onHeadersReceived` observer classifies response Content-Type and URL, deduplicates per tab/URL, and shows candidates in the popup. | Off by default; requires optional access to all HTTP(S) sites to observe cross-origin CDNs. Candidate URLs live in `storage.session` and are cleared on tab navigation/close, permission revocation, or browser exit. Request headers and bodies are not read. |
-| Native handoff | Versioned native-messaging message accepts validated HTTP(S) URLs without embedded credentials. | Actual browser-to-desktop runtime validation is still pending for installed browser builds. |
+| Native handoff | Context-menu actions use `add-url` for explicit immediate downloads. Popup candidates use `add-candidate` to create a persisted **Detected** row in the app; the user can inspect/download or dismiss it. | Actual browser-to-desktop runtime validation is still pending for installed browser builds. |
 | Request context | Signed query parameters are preserved for legitimate downloads. | Browser cookies and authorization headers are not collected or stored. Authenticated streams may fail. |
 
 ## Security and unsupported content

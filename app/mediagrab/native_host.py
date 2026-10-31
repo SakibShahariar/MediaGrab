@@ -28,7 +28,8 @@ def validate_message(message: object) -> str:
         raise ProtocolError("message must be a JSON object")
     if message.get("version") != PROTOCOL_VERSION:
         raise ProtocolError("unsupported protocol version")
-    if message.get("type") != "add-url":
+    message_type = message.get("type")
+    if not isinstance(message_type, str) or message_type not in {"add-url", "add-candidate"}:
         raise ProtocolError("unsupported message type")
     url = message.get("url")
     if not isinstance(url, str) or not url or len(url) > 16_384:
@@ -74,11 +75,13 @@ def write_message(stream: BinaryIO, message: dict[str, object]) -> None:
 
 
 def handle_message(message: object, *, executable: str = "mediagrab") -> dict[str, object]:
-    """Validate and ask the single-instance desktop app to enqueue a URL."""
+    """Validate a URL handoff or review candidate for the single-instance app."""
     url = validate_message(message)
+    message_type = message.get("type") if isinstance(message, dict) else None
+    argument = "--add-candidate" if message_type == "add-candidate" else "--add-url"
     try:
         result = subprocess.run(
-            [executable, "--add-url", url],
+            [executable, argument, url],
             check=False,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,

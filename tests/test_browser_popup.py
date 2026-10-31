@@ -24,7 +24,7 @@ def test_popup_scan_is_user_triggered_and_redacts_secrets_in_display() -> None:
     assert 'scanButton.addEventListener("click"' in source
     assert "performance.getEntriesByType" in source
     assert "parsed.host + parsed.pathname" in source
-    assert 'type: "add-url"' in source
+    assert 'type = "add-candidate"' in source
     assert "MAX_CANDIDATES = 40" in source
     assert "element.currentSrc" in source
     assert 'querySelectorAll("video, audio")' in source
@@ -70,6 +70,8 @@ def test_popup_exposes_explicit_background_permission_control() -> None:
     assert "api.permissions.remove" in source
     assert "api.storage.session.get" in source
     assert "Observed network response" in source
+    assert "Review in MediaGrab" in source
+    assert "Sent for review" in source
     assert "parsed.host + parsed.pathname" in source
 
 

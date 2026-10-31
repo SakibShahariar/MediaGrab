@@ -17,8 +17,15 @@ from mediagrab.native_host import (
 )
 
 
-def test_validates_add_url_message() -> None:
-    assert validate_message({"version": 1, "type": "add-url", "url": "https://example.test/video.mp4?sig=x"}) == "https://example.test/video.mp4?sig=x"
+@pytest.mark.parametrize("message_type", ["add-url", "add-candidate"])
+def test_validates_supported_url_messages(message_type: str) -> None:
+    assert validate_message({"version": 1, "type": message_type, "url": "https://example.test/video.mp4?sig=x"}) == "https://example.test/video.mp4?sig=x"
+
+
+
+def test_rejects_unhashable_message_type() -> None:
+    with pytest.raises(ProtocolError, match="unsupported message type"):
+        validate_message({"version": 1, "type": [], "url": "https://example.test/video.mp4"})
 
 
 @pytest.mark.parametrize("url", [
@@ -69,7 +76,13 @@ def test_rejects_truncated_body_and_invalid_json() -> None:
         read_message(io.BytesIO(struct.pack("<I", len(payload)) + payload))
 
 
-def test_handoff_uses_argument_vector_and_does_not_leak_url(monkeypatch) -> None:
+@pytest.mark.parametrize(
+    ("message_type", "argument"),
+    [("add-url", "--add-url"), ("add-candidate", "--add-candidate")],
+)
+def test_handoff_uses_argument_vector_and_does_not_leak_url(
+    monkeypatch, message_type: str, argument: str
+) -> None:
     seen = {}
 
     class Result:
@@ -82,7 +95,7 @@ def test_handoff_uses_argument_vector_and_does_not_leak_url(monkeypatch) -> None
 
     monkeypatch.setattr("mediagrab.native_host.subprocess.run", fake_run)
     url = "https://example.test/file.mp4?signature=secret"
-    assert handle_message({"version": 1, "type": "add-url", "url": url}) == {"version": 1, "ok": True}
-    assert seen["args"] == ["mediagrab", "--add-url", url]
+    assert handle_message({"version": 1, "type": message_type, "url": url}) == {"version": 1, "ok": True}
+    assert seen["args"] == ["mediagrab", argument, url]
     assert "shell" not in seen["kwargs"]
     assert seen["kwargs"]["stdout"] is not None
