@@ -29,25 +29,6 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404, "Not found")
             return
         range_header = self.headers.get("Range")
-        if self.path.startswith("/slow.bin"):
-            offset = int(range_header.removeprefix("bytes=").split("-", 1)[0]) if range_header else 0
-            body = PAYLOAD[offset:]
-            if offset:
-                self.send_response(206)
-                self.send_header("Content-Range", f"bytes {offset}-{len(PAYLOAD) - 1}/{len(PAYLOAD)}")
-            else:
-                self.send_response(200)
-            self.send_header("ETag", '"payload-v1"')
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            try:
-                for start in range(0, len(body), 4096):
-                    self.wfile.write(body[start:start + 4096])
-                    self.wfile.flush()
-                    time.sleep(0.08)
-            except (BrokenPipeError, ConnectionResetError):
-                pass
-            return
         body = PAYLOAD
         if range_header and range_header.startswith("bytes="):
             try:
@@ -131,18 +112,46 @@ def test_redirects_are_logged_without_leaking_signed_urls(tmp_path: Path, server
 
 
 def test_killed_process_leaves_a_resumable_partial(tmp_path: Path, server: str) -> None:
-    url = f"{server}/slow.bin"
+    url = f"{server}/payload.bin"
     destination = tmp_path / "downloads"
-    script = (
-        "import sys; from mediagrab.downloader import DownloadTask; "
-        "DownloadTask(sys.argv[1], sys.argv[2], chunk_size=4096).run()"
-    )
+    script = """
+import sys
+import time
+import urllib.request
+from mediagrab.downloader import DownloadTask
+
+payload = b"MediaGrab test payload\\n" * 4096
+
+class Response:
+    status = 200
+    headers = {"Content-Length": str(len(payload)), "ETag": '"payload-v1"'}
+
+    def __init__(self):
+        self.offset = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def read(self, size):
+        if self.offset:
+            time.sleep(60)
+            return b""
+        chunk = payload[:size]
+        self.offset = len(chunk)
+        return chunk
+
+urllib.request.urlopen = lambda *_args, **_kwargs: Response()
+DownloadTask(sys.argv[1], sys.argv[2], chunk_size=16384).run()
+"""
     process = subprocess.Popen(
         [sys.executable, "-c", script, url, str(destination)],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    partial = destination / "slow.bin.part"
+    partial = destination / "payload.bin.part"
     metadata = partial.with_name(partial.name + ".json")
     deadline = time.monotonic() + 10
     try:
@@ -173,6 +182,7 @@ def test_killed_process_leaves_a_resumable_partial(tmp_path: Path, server: str) 
         if process.poll() is None:
             process.kill()
             process.wait(timeout=5)
+
 
 
 def test_http_error_is_reported(tmp_path: Path, server: str) -> None:
