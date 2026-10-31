@@ -105,9 +105,12 @@ def test_uninstall_is_idempotent_and_removes_only_registration(tmp_path: Path) -
     assert uninstall("firefox", tmp_path) == path
 
 
-def test_browser_paths_are_distinct(tmp_path: Path) -> None:
+def test_browser_paths_are_distinct(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    home = tmp_path / "home"
+    browsers = ("firefox", "chromium", "chrome", "brave", "vivaldi")
     paths = {
-        browser_manifest_path(browser, tmp_path)
-        for browser in ("firefox", "chromium", "chrome", "brave", "vivaldi")
+        browser_manifest_path(browser, browser_config_root(browser, home))
+        for browser in browsers
     }
-    assert len(paths) == 5
+    assert len(paths) == len(browsers)
