@@ -2,7 +2,7 @@
 
 A native Linux download manager focused on reliable browser-to-desktop media capture, inspired by the workflow of Internet Download Manager (IDM).
 
-> **Status:** Early implementation. The GTK4/libadwaita queue, HTTP(S) download core, browser handoff prototype, and HLS/DASH manifest inspection are implemented. Automatic background detection remains unfinished; the app now offers an in-app HLS variant chooser when a manifest is inspected. Direct-file downloads work natively; HLS/DASH manifest URLs are routed to an optional FFmpeg stream adapter.
+> **Status:** Early implementation. The GTK4/libadwaita queue, HTTP(S) download core, browser handoff prototype, and HLS/DASH manifest inspection are implemented. Optional background response observation is now available in the browser popup; detected candidates are reviewed there before handoff. An in-app candidate inbox remains unfinished; the app now offers an in-app HLS variant chooser when a manifest is inspected. Direct-file downloads work natively; HLS/DASH manifest URLs are routed to an optional FFmpeg stream adapter.
 
 ## Goals
 
@@ -31,7 +31,7 @@ Direct HTTP(S) downloads can be paused and resumed; pause is cooperative and may
 - Optional FFmpeg-backed HLS/DASH downloads, collision-safe numbered MKV outputs, stream-copy remuxing, progress and cancellation.
 - Media classification, HLS variant and alternate audio/subtitle parsing, and DASH representation metadata extraction.
 - **Manifest inspection and track selection:** fetches bounded HLS/DASH manifests, lists HLS variants and alternate audio/subtitle playlists, and offers optional external audio/subtitle selection. Selected streams are muxed into MKV with FFmpeg stream copy; track choices survive queue recovery and retry.
-- Browser popup scans page-visible resource timing, media elements, subtitle tracks, and media-looking links. Handoffs are user-triggered.
+- Browser popup scans page-visible resources and can optionally observe media response URLs and Content-Type headers across HTTP(S) sites after explicit all-sites permission. Candidates stay in browser-session memory, are deduplicated per tab, and are reviewed before handoff.
 - Automated tests run on Python 3.11–3.14.
 - A [support matrix](docs/support-matrix.md) distinguishes tested core behavior from outstanding real-world and browser validation.
 
@@ -53,7 +53,7 @@ The report shows available HLS resolutions and bitrates, alternate audio/subtitl
 ## Next milestones
 
 1. End-to-end browser handoff validation in Firefox and Chromium.
-2. Improve user-controlled request observation where supported by browser APIs.
+2. Add an in-app candidate inbox and end-to-end request-observation tests.
 3. Add structured diagnostics and packaging.
 
 ## Development principles

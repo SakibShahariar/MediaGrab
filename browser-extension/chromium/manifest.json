@@ -2,18 +2,10 @@
   "manifest_version": 3,
   "name": "MediaGrab — Send to desktop",
   "version": "0.1.0",
-  "description": "Send a selected HTTP(S) link or the current page to MediaGrab.",
-  "permissions": [
-    "contextMenus",
-    "nativeMessaging",
-    "activeTab",
-    "scripting"
-  ],
-  "background": {
-    "service_worker": "background.js"
-  },
-  "action": {
-    "default_title": "Scan page media with MediaGrab",
-    "default_popup": "popup.html"
-  }
+  "description": "Send links to MediaGrab and optionally detect media responses in the background.",
+  "minimum_chrome_version": "102",
+  "permissions": ["contextMenus", "nativeMessaging", "activeTab", "scripting", "webRequest", "storage"],
+  "optional_host_permissions": ["*://*/*"],
+  "background": {"service_worker": "background.js"},
+  "action": {"default_title": "Scan page media with MediaGrab", "default_popup": "popup.html"}
 }

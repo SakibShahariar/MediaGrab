@@ -1,5 +1,23 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>MediaGrab</title><link rel="stylesheet" href="popup.css"></head>
-<body><main><header><span class="mark">M</span><div><h1>MediaGrab</h1><p>Browser media capture</p></div></header>
-<button id="scan" class="primary">Scan this tab</button><p id="status" role="status">Scan the current page for media resources, subtitle tracks, and downloadable links.</p>
-<ul id="candidates" aria-label="Detected media"></ul><p class="note">Scanning is user-triggered. Results include visible resource URLs, media element sources, subtitle tracks, and links. Blob URLs, authenticated requests, and protected streams may not be downloadable directly.</p></main><script src="popup.js"></script></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MediaGrab</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main>
+    <header><span class="mark">M</span><div><h1>MediaGrab</h1><p>Browser media capture</p></div></header>
+    <section class="detection">
+      <button id="toggle-detection" class="secondary">Enable background detection (all sites)</button>
+      <p id="detection-status" role="status">Background detection is off by default.</p>
+    </section>
+    <button id="scan" class="primary">Scan this tab</button>
+    <p id="status" role="status">Scan the current page for media resources, subtitle tracks, and downloadable links.</p>
+    <ul id="candidates" aria-label="Detected media"></ul>
+    <p class="note">Background detection is optional and requires access to all HTTP(S) sites to observe cross-origin media CDNs. It reads response Content-Type only, stores candidates in memory for this browser session, and never reads request headers or response bodies. Scanning remains user-triggered when background detection is off.</p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

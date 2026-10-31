@@ -18,7 +18,8 @@ This matrix describes behavior implemented and covered by the repository's curre
 |---|---|---|
 | Firefox | Manual link/page context-menu handoff and popup scan. | Temporary add-on installation requires reloading after browser restart during development. |
 | Chromium-family | Shared extension code supports Chromium, Chrome, Brave, and Vivaldi extension APIs where compatible. | Native host registration paths are documented for native Linux packages; Brave Flatpak has not been validated. |
-| Current-tab scan | User clicks **Scan this tab**; the popup inspects page-visible resource timing entries, media elements, subtitle tracks, and media-looking links. | No background network interception. Blob URLs, opaque requests, and protected resources may not be usable. |
+| Current-tab scan | User clicks **Scan this tab**; the popup inspects page-visible resource timing entries, media elements, subtitle tracks, and media-looking links. | Blob URLs, opaque requests, and protected resources may not be usable. |
+| Background observation | Optional opt-in `webRequest.onHeadersReceived` observer classifies response Content-Type and URL, deduplicates per tab/URL, and shows candidates in the popup. | Off by default; requires optional access to all HTTP(S) sites to observe cross-origin CDNs. Candidate URLs live in `storage.session` and are cleared on tab navigation/close, permission revocation, or browser exit. Request headers and bodies are not read. |
 | Native handoff | Versioned native-messaging message accepts validated HTTP(S) URLs without embedded credentials. | Actual browser-to-desktop runtime validation is still pending for installed browser builds. |
 | Request context | Signed query parameters are preserved for legitimate downloads. | Browser cookies and authorization headers are not collected or stored. Authenticated streams may fail. |
 
@@ -27,7 +28,7 @@ This matrix describes behavior implemented and covered by the repository's curre
 - Only HTTP(S) URLs are accepted by the native host and transfer engines; embedded username/password credentials are rejected.
 - Query strings may contain signed access tokens. UI labels and inspector output redact query/fragment values; the queue still retains the original URL so retries work.
 - MediaGrab does not bypass DRM or other access controls.
-- Browser capture does not currently transfer cookies, authorization headers, or other authenticated request context.
+- Browser capture does not transfer cookies, authorization headers, or other authenticated request context. Background observation reads response Content-Type only and does not inspect request headers or response bodies.
 - Vivaldi Snap and Flatpak builds do not expose the Native Messaging API. Brave Flatpak registration is not validated.
 - Private-window capture behavior has not been implemented as a separately configurable feature.
 

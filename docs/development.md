@@ -38,7 +38,7 @@ The inspector fetches only the manifest, caps its response at 4 MiB, uses a fini
 
 ## Browser integration
 
-MediaGrab provides manual Firefox and Chromium-family extensions. Scanning is user-triggered: the popup inspects page-visible resource timing entries, media elements, subtitle tracks, and links after you click **Scan this tab**. The extension uses `activeTab` and `scripting`; it does not request permanent access to every site or monitor all browser traffic in the background.
+MediaGrab provides Firefox and Chromium-family extensions. Manual scanning remains user-triggered and inspects page-visible resource timing entries, media elements, subtitle tracks, and links. Optional background response observation is off by default; users can explicitly grant access to all HTTP(S) sites from the popup. The observer reads only response `Content-Type` and candidate URLs from `webRequest.onHeadersReceived`; it does not read request headers, cookies, authorization values, or response bodies. Candidate URLs are kept in `storage.session` memory, deduplicated by tab and URL, and cleared on navigation, tab close, permission revocation, or browser exit.
 
 ### Install the extension
 
@@ -78,7 +78,7 @@ See [Browser Native Host Installer](browser-native-host-installer.md) for exact 
 
 ## Current limitations
 
-- Browser scanning is user-triggered and limited to page-visible resource timing, media elements, subtitle tracks, and media-looking links. It does not automatically observe every network request.
+- Manual browser scanning is user-triggered. Optional background observation requires the user to grant the broad `*://*/*` HTTP(S) host permission; it is limited to response headers and candidate URLs and does not capture request headers or bodies. Candidate URLs remain in browser-session memory and are cleared when their tab navigates or closes.
 - Browser cookies and authorization headers are not currently collected; authenticated streams may fail.
 - HLS alternate track selection works for external rendition playlists that FFmpeg can open and mux. Embedded/default tracks remain controlled by FFmpeg; track group compatibility and codec/container support depend on the source manifest.
 - HLS/DASH downloads require FFmpeg and remux to MKV without re-encoding. DRM is not bypassed.
