@@ -14,7 +14,12 @@ OPTIONAL_URL_FIELDS = ("audio_url", "subtitle_url")
 def default_queue_path() -> Path:
     """Return the per-user state location, respecting XDG_STATE_HOME."""
     configured = os.environ.get("XDG_STATE_HOME", "").strip()
-    state_home = Path(configured) if configured else Path.home() / ".local" / "state"
+    default_home = Path.home() / ".local" / "state"
+    state_home = Path(configured).expanduser() if configured else default_home
+    # XDG_STATE_HOME must be absolute; ignore invalid relative values rather
+    # than writing application state relative to the current working directory.
+    if not state_home.is_absolute():
+        state_home = default_home
     return state_home / "mediagrab" / "queue.json"
 
 
@@ -31,12 +36,22 @@ def _valid_http_url(value: Any) -> bool:
     )
 
 
+def _fsync_directory(directory: Path) -> None:
+    """Persist a directory entry update after an atomic rename."""
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    descriptor = os.open(directory, flags)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
 def load_queue(path: str | Path | None = None) -> list[dict[str, str]]:
     """Load valid entries, retaining optional track URLs and accepting old URL-only state."""
     queue_path = Path(path) if path is not None else default_queue_path()
     try:
         raw: Any = json.loads(queue_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeError, json.JSONDecodeError):
         return []
     if not isinstance(raw, list):
         return []
@@ -59,10 +74,10 @@ def load_queue(path: str | Path | None = None) -> list[dict[str, str]]:
 def save_queue(entries: list[dict[str, str]], path: str | Path | None = None) -> None:
     """Atomically save unfinished entries, preserving valid optional track selections."""
     queue_path = Path(path) if path is not None else default_queue_path()
-    queue_path.parent.mkdir(parents=True, exist_ok=True)
+    queue_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     normalized: list[dict[str, str]] = []
     for item in entries:
-        if not _valid_http_url(item.get("url")):
+        if not isinstance(item, dict) or not _valid_http_url(item.get("url")):
             continue
         entry = {"url": item["url"]}
         for field in OPTIONAL_URL_FIELDS:
@@ -81,6 +96,7 @@ def save_queue(entries: list[dict[str, str]], path: str | Path | None = None) ->
             output.flush()
             os.fsync(output.fileno())
         os.replace(temporary, queue_path)
+        _fsync_directory(queue_path.parent)
     except Exception:
         try:
             temporary.unlink(missing_ok=True)
