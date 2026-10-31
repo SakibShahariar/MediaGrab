@@ -539,9 +539,6 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         if not is_valid_http_url(url):
             self.toast_overlay.add_toast(Adw.Toast.new("Enter a valid credential-free HTTP(S) URL."))
             return
-        if parsed.username is not None or parsed.password is not None:
-            self.toast_overlay.add_toast(Adw.Toast.new("URLs with embedded credentials are not accepted."))
-            return
         log_event(_LOG, "manifest_inspection_started", url=url)
         self.toast_overlay.add_toast(Adw.Toast.new("Inspecting media manifest…"))
 
@@ -691,12 +688,8 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
     def add_download_url(self, url: str, *, audio_url: str | None = None, subtitle_url: str | None = None) -> bool:
         """Validate and enqueue a URL from either the UI or browser bridge."""
-        parsed = urlparse(url)
-        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-            self.toast_overlay.add_toast(Adw.Toast.new("Enter a valid HTTP(S) URL."))
-            return False
-        if parsed.username is not None or parsed.password is not None:
-            self.toast_overlay.add_toast(Adw.Toast.new("URLs with embedded credentials are not accepted."))
+        if not is_valid_http_url(url):
+            self.toast_overlay.add_toast(Adw.Toast.new("Enter a valid credential-free HTTP(S) URL."))
             return False
         try:
             task = create_download_task(url, self.download_directory, audio_url=audio_url, subtitle_url=subtitle_url)
