@@ -478,7 +478,14 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         entry = Gtk.Entry()
         entry.set_placeholder_text("https://example.com/file.zip")
         entry.set_hexpand(True)
-        dialog.set_extra_child(entry)
+        paste_button = Gtk.Button(label="Paste")
+        paste_button.set_tooltip_text("Read a URL from the clipboard")
+        paste_button.add_css_class("flat")
+        paste_button.connect("clicked", self._on_paste_clipboard, entry)
+        entry_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        entry_row.append(entry)
+        entry_row.append(paste_button)
+        dialog.set_extra_child(entry_row)
         dialog.add_response("cancel", "Cancel")
         dialog.add_response("inspect", "Inspect media…")
         dialog.add_response("add", "Download")
@@ -487,6 +494,40 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         dialog.set_response_appearance("add", Adw.ResponseAppearance.SUGGESTED)
         dialog.connect("response", self._on_add_response, entry)
         dialog.present(self)
+
+    def _on_paste_clipboard(self, _button: Gtk.Button, entry: Gtk.Entry) -> None:
+        """Read clipboard text only after the user explicitly presses Paste."""
+        clipboard = self.get_display().get_clipboard()
+        clipboard.read_text_async(None, self._on_clipboard_text_read, entry)
+
+    def _on_clipboard_text_read(
+        self, clipboard: object, result: object, entry: Gtk.Entry
+    ) -> None:
+        try:
+            value = clipboard.read_text_finish(result)  # type: ignore[attr-defined]
+        except GLib.Error:
+            self.toast_overlay.add_toast(Adw.Toast.new("Could not read text from the clipboard."))
+            return
+        url = value.strip() if isinstance(value, str) else ""
+        if not url:
+            self.toast_overlay.add_toast(Adw.Toast.new("The clipboard does not contain text."))
+            return
+        parsed = urlparse(url)
+        try:
+            _ = parsed.port
+        except ValueError:
+            self.toast_overlay.add_toast(Adw.Toast.new("The clipboard does not contain a valid HTTP(S) URL."))
+            return
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+        ):
+            self.toast_overlay.add_toast(Adw.Toast.new("The clipboard does not contain a valid credential-free HTTP(S) URL."))
+            return
+        entry.set_text(url)
+        self.toast_overlay.add_toast(Adw.Toast.new("URL pasted. Review it before adding the download."))
 
     def _on_add_response(
         self, _dialog: Adw.AlertDialog, response: str, entry: Gtk.Entry

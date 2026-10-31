@@ -40,6 +40,10 @@ Direct HTTP(S) downloads can be paused and resumed; pause is cooperative and may
 
 The Firefox and Chromium-family extensions support manual link/page handoff, user-triggered current-tab scanning, and optional background response observation after the user grants all-sites HTTP(S) permission. Detected candidates can be sent to the persistent in-app review inbox without starting a download. Private/incognito tabs are excluded from background response capture, page scanning, and context-menu handoff even if the browser permits the extension to run there; MediaGrab does not offer a private-window capture exception. Install the extension and register the native host using the [browser installation guide](docs/browser-native-host-installer.md).
 
+## Clipboard capture
+
+The Add a download dialog includes an explicit **Paste** action. MediaGrab reads clipboard text only after that button is pressed, accepts only credential-free HTTP(S) URLs, and places the value in the editable URL field for review. It does not monitor the clipboard or automatically enqueue clipboard contents.
+
 ## Command-line control
 
 The `mediagrab` command forwards operations to the running desktop application through its single-instance `GApplication` command-line channel (D-Bus activation). It can add URLs, inspect the current in-memory queue, and control queue items:
