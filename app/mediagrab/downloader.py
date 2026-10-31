@@ -301,6 +301,9 @@ class DownloadTask:
                             if not chunk:
                                 break
                             output.write(chunk)
+                            # Make the partial visible to a restarted process even if this
+                            # process exits before the transfer reaches its final flush.
+                            output.flush()
                             received += len(chunk)
                             segment_received += len(chunk)
                             now = time.monotonic()
