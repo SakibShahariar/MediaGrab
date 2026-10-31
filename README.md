@@ -53,9 +53,9 @@ The report shows available HLS resolutions and bitrates, alternate audio/subtitl
 
 ## Next milestones
 
-1. End-to-end browser handoff validation in Firefox and Chromium.
-2. Complete real-browser request-observation and in-app review-inbox end-to-end testing.
-3. Validate browser-to-desktop candidate review in installed Firefox and Chromium builds, then continue packaging.
+1. Complete installed Firefox and Chromium browser-to-desktop end-to-end validation ([#14](https://github.com/SakibShahariar/MediaGrab/issues/14)).
+2. Validate Brave and Vivaldi compatibility ([#12](https://github.com/SakibShahariar/MediaGrab/issues/12)).
+3. Package MediaGrab for Fedora ([#11](https://github.com/SakibShahariar/MediaGrab/issues/11)).
 
 ## Development principles
 
