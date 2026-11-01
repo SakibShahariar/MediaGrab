@@ -193,6 +193,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         self.set_title("MediaGrab")
         self.set_default_size(1000, 680)
         self._rows: list[DownloadRow] = []
+        self._completed_count = 0
         self._pending_downloads: list[DownloadRow] = []
         self._active_downloads: set[DownloadRow] = set()
         settings = load_settings()
@@ -425,9 +426,8 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
     def _update_count(self) -> None:
         count = len(self._rows)
-        completed = sum(row.status_label.get_text() == "Completed" for row in self._rows)
         self.count_label.set_text(f"{count} item" + ("" if count == 1 else "s"))
-        self.clear_completed_button.set_sensitive(completed > 0)
+        self.clear_completed_button.set_sensitive(self._completed_count > 0)
 
     def _on_search_changed(self, _entry: Gtk.SearchEntry) -> None:
         query = self.search_entry.get_text().strip().casefold()
@@ -448,6 +448,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         if not completed:
             return
         self._rows = remaining
+        self._completed_count -= len(completed)
         for row in completed:
             self.list_box.remove(row)
         self._update_count()
@@ -844,6 +845,8 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         row.is_active = False
         self._active_downloads.discard(row)
         row.finish(state, detail if state == "Failed" else None)
+        if state == "Completed":
+            self._completed_count += 1
         self._send_download_notification(row, state, detail)
         if state == "Completed":
             self.toast_overlay.add_toast(Adw.Toast.new(f"Saved: {detail}"))
