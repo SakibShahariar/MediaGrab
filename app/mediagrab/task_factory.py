@@ -24,9 +24,17 @@ def create_download_task(
     kind = classify_media(url)
     if kind in {MediaKind.HLS, MediaKind.DASH} or audio_url or subtitle_url:
         if audio_url or subtitle_url:
+            if expected_checksum is None:
+                return MediaStreamTask(
+                    url, destination, audio_url=audio_url, subtitle_url=subtitle_url
+                )
             return MediaStreamTask(
                 url, destination, audio_url=audio_url, subtitle_url=subtitle_url,
                 expected_checksum=expected_checksum,
             )
+        if expected_checksum is None:
+            return MediaStreamTask(url, destination)
         return MediaStreamTask(url, destination, expected_checksum=expected_checksum)
+    if expected_checksum is None:
+        return DownloadTask(url, destination)
     return DownloadTask(url, destination, expected_checksum=expected_checksum)
