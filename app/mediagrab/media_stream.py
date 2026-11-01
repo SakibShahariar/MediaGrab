@@ -200,6 +200,9 @@ class MediaStreamTask:
                 elapsed = max(time.monotonic() - started, 0.001)
                 on_progress(DownloadProgress(size, size, size / elapsed, "completed"))
             return target
+        except DownloadError:
+            self._set_state("failed")
+            raise
         except FileNotFoundError as exc:
             self._set_state("failed")
             raise DownloadError("FFmpeg executable was not found; install FFmpeg and retry") from exc
