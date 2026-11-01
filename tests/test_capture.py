@@ -193,3 +193,71 @@ def test_hls_master_parser_rejects_embedded_credentials() -> None:
 def test_dash_parser_rejects_embedded_credentials() -> None:
     with pytest.raises(ValueError, match="embedded credentials"):
         parse_dash_representations("https://user:secret@cdn.example/manifest.mpd", "<MPD/>")
+
+
+def test_dash_resolves_baseurl_inheritance_at_each_manifest_level() -> None:
+    manifest = """<MPD xmlns="urn:mpeg:dash:schema:mpd:2011">
+      <BaseURL>assets/</BaseURL>
+      <Period>
+        <BaseURL>period-1/</BaseURL>
+        <AdaptationSet mimeType="video/mp4">
+          <BaseURL>video/</BaseURL>
+          <Representation id="inherited" bandwidth="1000000">
+            <BaseURL>720/</BaseURL>
+          </Representation>
+          <Representation id="absolute" bandwidth="2000000">
+            <BaseURL>https://cdn.example/independent/1080.mp4</BaseURL>
+          </Representation>
+        </AdaptationSet>
+      </Period>
+    </MPD>"""
+    reps = parse_dash_representations("https://origin.example/manifests/movie.mpd", manifest)
+
+    assert [item.url for item in reps] == [
+        "https://origin.example/manifests/assets/period-1/video/720/",
+        "https://cdn.example/independent/1080.mp4",
+    ]
+
+
+def test_dash_segment_template_timeline_is_not_misreported_as_direct_url() -> None:
+    manifest = """<MPD xmlns="urn:mpeg:dash:schema:mpd:2011">
+      <Period>
+        <AdaptationSet mimeType="video/mp4">
+          <SegmentTemplate timescale="1000" initialization="init-$RepresentationID$.mp4"
+                           media="chunk-$RepresentationID$-$Number%05d$.m4s" startNumber="1">
+            <SegmentTimeline>
+              <S t="0" d="2000" r="2"/>
+              <S d="1500"/>
+            </SegmentTimeline>
+          </SegmentTemplate>
+          <Representation id="video-720" bandwidth="1800000" width="1280" height="720"/>
+        </AdaptationSet>
+      </Period>
+    </MPD>"""
+    reps = parse_dash_representations("https://cdn.example/live/manifest.mpd", manifest)
+
+    assert len(reps) == 1
+    assert reps[0].id == "video-720"
+    assert reps[0].height == 720
+    # SegmentTemplate/Timeline URLs require a segment-aware downloader; a
+    # template string must never be presented as a directly downloadable file.
+    assert reps[0].url is None
+
+
+def test_dash_segment_list_and_representation_template_remain_unresolved() -> None:
+    manifest = """<MPD><Period><AdaptationSet mimeType="video/mp4">
+      <Representation id="list" bandwidth="800000">
+        <SegmentList timescale="1">
+          <Initialization sourceURL="init.mp4"/>
+          <SegmentURL media="segment-1.m4s"/>
+          <SegmentURL media="segment-2.m4s"/>
+        </SegmentList>
+      </Representation>
+      <Representation id="template" bandwidth="1200000">
+        <SegmentTemplate media="part-$Number$.m4s" initialization="init.mp4"/>
+      </Representation>
+    </AdaptationSet></Period></MPD>"""
+    reps = parse_dash_representations("https://cdn.example/movie/manifest.mpd", manifest)
+
+    assert [item.id for item in reps] == ["list", "template"]
+    assert all(item.url is None for item in reps)
