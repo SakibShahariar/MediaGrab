@@ -142,7 +142,7 @@ class DownloadTask:
             return
         try:
             verify_file(path, self.expected_checksum)
-        except ChecksumMismatchError as exc:
+        except (ChecksumMismatchError, OSError) as exc:
             raise DownloadError(f"Checksum verification failed: {exc}") from exc
 
     def run(self, on_progress: ProgressCallback | None = None) -> Path:
