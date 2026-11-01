@@ -95,3 +95,10 @@ def test_background_keeps_existing_context_menu_native_handoff() -> None:
         assert "Send link to MediaGrab" in source
         assert "sendNativeMessage" in source
         assert 'type: "add-url"' in source
+
+
+def test_popup_refuses_to_scan_private_windows() -> None:
+    for browser in ("firefox", "chromium"):
+        source = (EXT / browser / "popup.js").read_text(encoding="utf-8")
+        assert "tab.incognito === true" in source
+        assert "Private windows are not scanned" in source
