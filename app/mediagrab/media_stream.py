@@ -191,7 +191,7 @@ class MediaStreamTask:
             if self.expected_checksum is not None:
                 try:
                     verify_file(temporary, self.expected_checksum)
-                except ChecksumMismatchError as exc:
+                except (ChecksumMismatchError, OSError) as exc:
                     raise DownloadError(f"Checksum verification failed: {exc}") from exc
             os.replace(temporary, target)
             self._set_state("completed")
