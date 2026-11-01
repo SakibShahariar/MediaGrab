@@ -131,3 +131,13 @@ def test_inspector_rejects_redirect_with_embedded_credentials(monkeypatch) -> No
     monkeypatch.setattr("mediagrab.media_inspector.urlopen", lambda *_args, **_kwargs: Response())
     with pytest.raises(ValueError, match="redirected to an unsupported URL"):
         inspect_manifest("https://cdn.example/master.m3u8")
+
+
+def test_formats_dash_representation_quality_without_fabricating_metadata():
+    from mediagrab.capture import DASHRepresentation
+    from mediagrab.media_inspector import format_dash_representation_label
+
+    known = DASHRepresentation("hd", "https://cdn.example/hd.mp4", 2_500_000, 1920, 1080, "video/mp4", "avc1.640028")
+    unknown = DASHRepresentation("mystery", None, None, None, None, None, None)
+    assert format_dash_representation_label(known) == "1920×1080 · 2500 kb/s · avc1.640028 · video/mp4"
+    assert format_dash_representation_label(unknown) == "Unknown resolution"
