@@ -886,6 +886,15 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 filename = Path(parsed.path).name or parsed.netloc or "download"
                 destination = str(self.download_directory)
                 size = None
+            expected_checksum = getattr(row.task, "expected_checksum", None)
+            if expected_checksum is None:
+                checksum_status = "not-requested"
+            elif state == "Completed":
+                checksum_status = "passed"
+            elif state == "Failed" and "checksum verification failed" in detail.casefold():
+                checksum_status = "failed"
+            else:
+                checksum_status = "incomplete"
             try:
                 append_history(make_history_entry(
                     source_url=redact_url(row.url),
@@ -893,6 +902,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                     destination=destination,
                     size=size,
                     outcome=state,
+                    checksum_status=checksum_status,
                 ))
             except (OSError, ValueError) as exc:
                 _LOG.warning("Could not persist download history: %s", exc)
