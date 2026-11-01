@@ -192,3 +192,23 @@ def test_explicit_subtitles_replace_default_subtitles_but_keep_video_audio():
     )
     maps = [command[i + 1] for i, value in enumerate(command[:-1]) if value == "-map"]
     assert maps == ["0:v?", "0:a?", "1:s:0?"]
+
+
+def test_stream_checksum_mismatch_never_finalizes_output(tmp_path: Path, monkeypatch) -> None:
+    task = MediaStreamTask(
+        "https://cdn.example/master.m3u8", tmp_path,
+        ffmpeg_path="/fake/ffmpeg", expected_checksum="sha256:" + "0" * 64,
+    )
+
+    def popen(command, **kwargs):
+        Path(command[-1]).write_bytes(b"stream payload")
+        return FakeProcess("progress=end\\n", 0)
+
+    monkeypatch.setattr("mediagrab.media_stream.subprocess.Popen", popen)
+
+    with pytest.raises(DownloadError, match="Checksum verification failed.*SHA256 checksum mismatch"):
+        task.run()
+
+    assert task.state == "failed"
+    assert not (tmp_path / "master.mkv").exists()
+    assert not (tmp_path / ".master.mediagrab-part.mkv").exists()
