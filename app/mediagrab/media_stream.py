@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse
 
+from mediagrab.checksum import ChecksumMismatchError, parse_expected_checksum, verify_file
 from mediagrab.downloader import DownloadError, DownloadProgress, filename_from_url, unique_output_path
 
 ProgressCallback = Callable[[DownloadProgress], None]
@@ -85,6 +86,7 @@ class MediaStreamTask:
         audio_url: str | None = None,
         subtitle_url: str | None = None,
         ffmpeg_path: str | None = None,
+        expected_checksum: str | None = None,
     ) -> None:
         _validate_http_url(url)
         if audio_url:
@@ -95,6 +97,9 @@ class MediaStreamTask:
         self.audio_url = audio_url or None
         self.subtitle_url = subtitle_url or None
         self.destination = Path(destination)
+        if expected_checksum is not None:
+            parse_expected_checksum(expected_checksum)
+        self.expected_checksum = expected_checksum
         self.ffmpeg_path = ffmpeg_path or shutil.which("ffmpeg")
         self._cancel = threading.Event()
         self._lock = threading.Lock()
@@ -183,6 +188,11 @@ class MediaStreamTask:
             if target.exists():
                 self._set_state("failed")
                 raise DownloadError(f"Destination already exists: {target}")
+            if self.expected_checksum is not None:
+                try:
+                    verify_file(temporary, self.expected_checksum)
+                except ChecksumMismatchError as exc:
+                    raise DownloadError(f"Checksum verification failed: {exc}") from exc
             os.replace(temporary, target)
             self._set_state("completed")
             if on_progress:
