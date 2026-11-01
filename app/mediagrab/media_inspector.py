@@ -127,6 +127,19 @@ def format_inspection(result: ManifestInspection) -> str:
     return "\n".join(lines)
 
 
+
+def format_dash_representation_label(item: DASHRepresentation) -> str:
+    """Describe declared DASH quality without inventing missing metadata."""
+    resolution = (
+        f"{item.width}×{item.height}"
+        if item.width is not None and item.height is not None
+        else "Unknown resolution"
+    )
+    bitrate = f" · {item.bandwidth / 1000:.0f} kb/s" if item.bandwidth else ""
+    codecs = f" · {item.codecs}" if item.codecs else ""
+    media_type = f" · {item.mime_type}" if item.mime_type else ""
+    return resolution + bitrate + codecs + media_type
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Inspect HLS/DASH quality and alternate-track metadata.")
     parser.add_argument("url", help="HTTP(S) HLS .m3u8 or DASH .mpd manifest URL")
