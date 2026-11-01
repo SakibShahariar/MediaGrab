@@ -102,3 +102,13 @@ def test_popup_refuses_to_scan_private_windows() -> None:
         source = (EXT / browser / "popup.js").read_text(encoding="utf-8")
         assert "tab.incognito === true" in source
         assert "Private windows are not scanned" in source
+
+
+def test_popup_filters_detected_candidates_without_reloading_scan() -> None:
+    for browser in ("firefox", "chromium"):
+        html = (EXT / browser / "popup.html").read_text(encoding="utf-8")
+        source = (EXT / browser / "popup.js").read_text(encoding="utf-8")
+        assert 'id="candidate-filter"' in html
+        assert 'filterInput.addEventListener("input", applyCandidateFilter)' in source
+        assert 'node.dataset.search' in source
+        assert 'node.hidden = Boolean(query)' in source
