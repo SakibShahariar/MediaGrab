@@ -56,7 +56,7 @@ def format_size(value: int) -> str:
 class DownloadRow(Adw.ActionRow):
     """One queue item, including progress, cancellation, and retry controls."""
 
-    def __init__(self, window: "MediaGrabWindow", url: str, task: DownloadTask, *, audio_url: str | None = None, subtitle_url: str | None = None) -> None:
+    def __init__(self, window: "MediaGrabWindow", url: str, task: DownloadTask, *, audio_url: str | None = None, subtitle_url: str | None = None, expected_checksum: str | None = None) -> None:
         parsed = urlparse(url)
         title = parsed.path.rsplit("/", 1)[-1] or parsed.netloc or url
         super().__init__(title=title, subtitle=redact_url(url))
@@ -64,6 +64,7 @@ class DownloadRow(Adw.ActionRow):
         self.url = url
         self.audio_url = audio_url
         self.subtitle_url = subtitle_url
+        self.expected_checksum = expected_checksum
         self.task = task
         self.is_active = False
         self._source_url = redact_url(url)
@@ -416,10 +417,10 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         for entry in load_queue():
             url = entry["url"]
             try:
-                task = create_download_task(url, self.download_directory, audio_url=entry.get("audio_url"), subtitle_url=entry.get("subtitle_url"))
+                task = create_download_task(url, self.download_directory, audio_url=entry.get("audio_url"), subtitle_url=entry.get("subtitle_url"), expected_checksum=entry.get("expected_checksum"))
             except ValueError:
                 continue
-            row = DownloadRow(self, url, task, audio_url=entry.get("audio_url"), subtitle_url=entry.get("subtitle_url"))
+            row = DownloadRow(self, url, task, audio_url=entry.get("audio_url"), subtitle_url=entry.get("subtitle_url"), expected_checksum=entry.get("expected_checksum"))
             row.finish("Detected" if entry.get("candidate") is True else "Interrupted")
             self._rows.append(row)
             self.list_box.append(row)
@@ -470,6 +471,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 "url": row.url,
                 **({"audio_url": row.audio_url} if row.audio_url else {}),
                 **({"subtitle_url": row.subtitle_url} if row.subtitle_url else {}),
+                **({"expected_checksum": row.expected_checksum} if row.expected_checksum else {}),
             }
             if state == "Detected":
                 entry["candidate"] = True
@@ -495,6 +497,8 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         )
         entry = Gtk.Entry()
         entry.set_placeholder_text("https://example.com/file.zip")
+        checksum_entry = Gtk.Entry()
+        checksum_entry.set_placeholder_text("Optional checksum: sha256:… / sha1:… / md5:…")
         entry.set_hexpand(True)
         paste_button = Gtk.Button(label="Paste")
         paste_button.set_tooltip_text("Read a URL from the clipboard")
@@ -503,14 +507,17 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         entry_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         entry_row.append(entry)
         entry_row.append(paste_button)
-        dialog.set_extra_child(entry_row)
+        dialog_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        dialog_content.append(entry_row)
+        dialog_content.append(checksum_entry)
+        dialog.set_extra_child(dialog_content)
         dialog.add_response("cancel", "Cancel")
         dialog.add_response("inspect", "Inspect media…")
         dialog.add_response("add", "Download")
         dialog.set_default_response("add")
         dialog.set_close_response("cancel")
         dialog.set_response_appearance("add", Adw.ResponseAppearance.SUGGESTED)
-        dialog.connect("response", self._on_add_response, entry)
+        dialog.connect("response", self._on_add_response, entry, checksum_entry)
         dialog.present(self)
 
     def _on_paste_clipboard(self, _button: Gtk.Button, entry: Gtk.Entry) -> None:
@@ -537,7 +544,8 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         self.toast_overlay.add_toast(Adw.Toast.new("URL pasted. Review it before adding the download."))
 
     def _on_add_response(
-        self, _dialog: Adw.AlertDialog, response: str, entry: Gtk.Entry
+        self, _dialog: Adw.AlertDialog, response: str, entry: Gtk.Entry,
+        checksum_entry: Gtk.Entry,
     ) -> None:
         if response not in {"add", "inspect"}:
             return
@@ -550,7 +558,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         if response == "inspect":
             self.inspect_media_url(url)
             return
-        self.add_download_url(url)
+        self.add_download_url(url, expected_checksum=checksum_entry.get_text().strip() or None)
 
     def inspect_media_url(self, url: str) -> None:
         """Inspect a manifest off the GTK thread, then offer available HLS qualities."""
@@ -718,7 +726,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         if row is not None:
             self.dismiss_candidate(row)
 
-    def add_download_url(self, url: str, *, audio_url: str | None = None, subtitle_url: str | None = None) -> bool:
+    def add_download_url(self, url: str, *, audio_url: str | None = None, subtitle_url: str | None = None, expected_checksum: str | None = None) -> bool:
         """Validate and enqueue a URL from either the UI or browser bridge."""
         if not is_valid_http_url(url):
             self.toast_overlay.add_toast(Adw.Toast.new("Enter a valid credential-free HTTP(S) URL."))
@@ -735,11 +743,11 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             )
             return False
         try:
-            task = create_download_task(url, self.download_directory, audio_url=audio_url, subtitle_url=subtitle_url)
+            task = create_download_task(url, self.download_directory, audio_url=audio_url, subtitle_url=subtitle_url, expected_checksum=expected_checksum)
         except ValueError as exc:
             self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
             return False
-        row = DownloadRow(self, url, task, audio_url=audio_url, subtitle_url=subtitle_url)
+        row = DownloadRow(self, url, task, audio_url=audio_url, subtitle_url=subtitle_url, expected_checksum=expected_checksum)
         self._rows.append(row)
         self.list_box.append(row)
         self._update_count()
@@ -804,7 +812,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         if row in self._pending_downloads or row in self._active_downloads:
             return
         try:
-            task = create_download_task(row.url, self.download_directory, audio_url=row.audio_url, subtitle_url=row.subtitle_url)
+            task = create_download_task(row.url, self.download_directory, audio_url=row.audio_url, subtitle_url=row.subtitle_url, expected_checksum=row.expected_checksum)
         except ValueError as exc:
             self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
             return
