@@ -436,12 +436,20 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             row.set_visible(not query or query in row._search_text or query in status)
 
     def _on_clear_completed(self, _button: Gtk.Button) -> None:
-        completed = [row for row in self._rows if row.status_label.get_text() == "Completed"]
+        # Partition once instead of repeatedly calling list.remove(), which
+        # scans the remaining queue for every completed row (quadratic work).
+        completed: list[DownloadRow] = []
+        remaining: list[DownloadRow] = []
+        for row in self._rows:
+            if row.status_label.get_text() == "Completed":
+                completed.append(row)
+            else:
+                remaining.append(row)
         if not completed:
             return
+        self._rows = remaining
         for row in completed:
             self.list_box.remove(row)
-            self._rows.remove(row)
         self._update_count()
         self._persist_queue()
         self.toast_overlay.add_toast(Adw.Toast.new(
