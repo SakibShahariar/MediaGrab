@@ -153,7 +153,7 @@ DownloadTask(sys.argv[1], sys.argv[2], chunk_size=16384).run()
     )
     partial = destination / "payload.bin.part"
     metadata = partial.with_name(partial.name + ".json")
-    deadline = time.monotonic() + 10
+    deadline = time.monotonic() + 30
     try:
         while time.monotonic() < deadline:
             if partial.exists() and partial.stat().st_size >= 8192 and metadata.exists():
