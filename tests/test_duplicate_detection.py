@@ -16,10 +16,12 @@ def test_ignores_completed_failed_and_detected_rows() -> None:
         ("https://example.test/a.bin", "Completed"),
         ("https://example.test/b.bin", "Failed"),
         ("https://example.test/c.bin", "Detected"),
+        ("https://example.test/d.bin", "Paused"),
     ]
     assert not has_pending_duplicate("https://example.test/a.bin", entries)
     assert not has_pending_duplicate("https://example.test/b.bin", entries)
     assert not has_pending_duplicate("https://example.test/c.bin", entries)
+    assert has_pending_duplicate("https://example.test/d.bin", entries)
 
 
 def test_duplicate_detection_requires_exact_url_match() -> None:
