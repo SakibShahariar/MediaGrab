@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from mediagrab.checksum import parse_expected_checksum
+
 OPTIONAL_URL_FIELDS = ("audio_url", "subtitle_url")
 QueueEntry = dict[str, str | bool]
 
@@ -36,6 +38,16 @@ def _valid_http_url(value: Any) -> bool:
         parsed.username is not None or parsed.password is not None
     )
 
+
+
+def _valid_checksum(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        parse_expected_checksum(value)
+    except ValueError:
+        return False
+    return True
 
 def _fsync_directory(directory: Path) -> None:
     """Persist a directory entry update after an atomic rename."""
@@ -70,6 +82,8 @@ def load_queue(path: str | Path | None = None) -> list[QueueEntry]:
                 entry[field] = value
         if item.get("candidate") is True:
             entry["candidate"] = True
+        if _valid_checksum(item.get("expected_checksum")):
+            entry["expected_checksum"] = item["expected_checksum"]
         entries.append(entry)
     return entries
 
@@ -89,6 +103,8 @@ def save_queue(entries: list[QueueEntry], path: str | Path | None = None) -> Non
                 entry[field] = value
         if item.get("candidate") is True:
             entry["candidate"] = True
+        if _valid_checksum(item.get("expected_checksum")):
+            entry["expected_checksum"] = item["expected_checksum"]
         normalized.append(entry)
     payload = json.dumps(normalized, ensure_ascii=False, indent=2) + "\n"
     fd, temporary_name = tempfile.mkstemp(
