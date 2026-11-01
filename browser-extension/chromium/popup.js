@@ -8,6 +8,7 @@ const detectionButton = document.getElementById("toggle-detection");
 const detectionStatus = document.getElementById("detection-status");
 const statusNode = document.getElementById("status");
 const list = document.getElementById("candidates");
+const filterInput = document.getElementById("candidate-filter");
 const MAX_CANDIDATES = 40;
 
 function classify(url, hint = "", mime = "") {
@@ -116,6 +117,15 @@ function sendNative(url, type = "add-candidate") {
   });
 }
 
+function applyCandidateFilter() {
+  const query = filterInput.value.trim().toLowerCase();
+  for (const node of list.children) {
+    node.hidden = Boolean(query) && !node.dataset.search.includes(query);
+  }
+}
+
+filterInput.addEventListener("input", applyCandidateFilter);
+
 function addCandidate(url, item, tabId) {
   const node = document.createElement("li");
   node.className = "candidate";
@@ -129,6 +139,7 @@ function addCandidate(url, item, tabId) {
   display.className = "url";
   const parsed = new URL(url);
   display.textContent = parsed.host + parsed.pathname;
+  node.dataset.search = (item.kind + " " + parsed.host + parsed.pathname).toLowerCase();
   const button = document.createElement("button");
   button.textContent = "Review in MediaGrab";
   button.addEventListener("click", async () => {
