@@ -72,7 +72,7 @@ def append_history(entry: dict[str, Any], path: str | Path | None = None) -> Non
     except OSError:
         pass
     entries = (load_history(history_path) + [normalized])[-MAX_HISTORY_ENTRIES:]
-    payload = json.dumps(entries, ensure_ascii=False, indent=2) + "\\n"
+    payload = json.dumps(entries, ensure_ascii=False, indent=2) + "\n"
     fd, temporary_name = tempfile.mkstemp(
         prefix=f".{history_path.name}.", suffix=".tmp", dir=history_path.parent
     )
