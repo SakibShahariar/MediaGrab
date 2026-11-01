@@ -20,7 +20,7 @@ from mediagrab.media_inspector import ManifestInspection, inspect_manifest, form
 from mediagrab.capture import MediaKind, HLSVariant
 from mediagrab.task_factory import create_download_task
 from mediagrab.queue_store import load_queue, save_queue
-from mediagrab.history_store import append_history, make_history_entry
+from mediagrab.history_store import append_history, make_history_entry, load_history, clear_history
 from mediagrab.duplicate_detection import has_pending_duplicate
 from mediagrab.settings_store import load_settings, save_settings
 from mediagrab.diagnostics import configure_logging, get_logger, log_event, read_diagnostics
@@ -211,6 +211,10 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         root.append(header)
         header.set_title_widget(Adw.WindowTitle(title="MediaGrab", subtitle="Downloads"))
 
+        history_button = Gtk.Button(label="History")
+        history_button.connect("clicked", self._on_history_clicked)
+        header.pack_start(history_button)
+
         diagnostics_button = Gtk.Button.new_from_icon_name("dialog-information-symbolic")
         diagnostics_button.set_tooltip_text("Settings and diagnostics")
         diagnostics_button.add_css_class("flat")
@@ -297,6 +301,111 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             f"Up to {self.max_concurrent_downloads} simultaneous downloads · "
             "HLS/DASH streams use FFmpeg · browser detections wait for your review"
         )
+
+    def _on_history_clicked(self, _button: Gtk.Button) -> None:
+        history_window = Adw.Window(
+            title="Download history", transient_for=self, modal=True
+        )
+        history_window.set_default_size(760, 520)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        content.set_margin_top(18)
+        content.set_margin_bottom(18)
+        content.set_margin_start(20)
+        content.set_margin_end(20)
+        history_window.set_content(content)
+
+        toolbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        search = Gtk.SearchEntry()
+        search.set_hexpand(True)
+        search.set_placeholder_text("Search history by filename, URL, status, or destination")
+        toolbar.append(search)
+        clear_button = Gtk.Button(label="Clear history")
+        clear_button.add_css_class("destructive-action")
+        toolbar.append(clear_button)
+        content.append(toolbar)
+
+        list_box = Gtk.ListBox()
+        list_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        list_box.add_css_class("boxed-list")
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_vexpand(True)
+        scroller.set_child(list_box)
+        content.append(scroller)
+        rows: list[tuple[Adw.ActionRow, str]] = []
+
+        def render_history() -> None:
+            child = list_box.get_first_child()
+            while child is not None:
+                following = child.get_next_sibling()
+                list_box.remove(child)
+                child = following
+            rows.clear()
+            history = list(reversed(load_history()))
+            if not history:
+                list_box.set_placeholder(Gtk.Label(label="No download history yet."))
+            else:
+                list_box.set_placeholder(Gtk.Label(label="No matching downloads."))
+            for item in history:
+                subtitle = (
+                    f'{item["outcome"]} · {item["timestamp"]} · '
+                    f'{item["source_url"]} · {item["destination"]}'
+                )
+                row = Adw.ActionRow(title=item["filename"], subtitle=subtitle)
+                search_text = " ".join(str(value) for value in item.values()).casefold()
+                rows.append((row, search_text))
+                if item["outcome"] == "Completed":
+                    target = Path(item["destination"]) / item["filename"]
+                    if target.is_file():
+                        open_button = Gtk.Button.new_from_icon_name("document-open-symbolic")
+                        open_button.set_tooltip_text("Open downloaded file")
+                        open_button.add_css_class("flat")
+                        open_button.connect("clicked", lambda _button, path=target: self._open_history_file(path))
+                        row.add_suffix(open_button)
+                list_box.append(row)
+            apply_filter()
+
+        def apply_filter(*_args: object) -> None:
+            query = search.get_text().strip().casefold()
+            for row, searchable in rows:
+                row.set_visible(not query or query in searchable)
+
+        def confirm_clear(_button: Gtk.Button) -> None:
+            confirmation = Adw.AlertDialog(
+                heading="Clear download history?",
+                body="This removes MediaGrab's local history records. Downloaded files will not be deleted.",
+            )
+            confirmation.add_response("cancel", "Cancel")
+            confirmation.add_response("clear", "Clear history")
+            confirmation.set_default_response("cancel")
+            confirmation.set_close_response("cancel")
+            confirmation.set_response_appearance("clear", Adw.ResponseAppearance.DESTRUCTIVE)
+
+            def on_confirmation(_dialog: Adw.AlertDialog, response: str) -> None:
+                if response != "clear":
+                    return
+                try:
+                    clear_history()
+                except OSError as exc:
+                    self.toast_overlay.add_toast(Adw.Toast.new(f"Could not clear history: {exc}"))
+                    return
+                render_history()
+                self.toast_overlay.add_toast(Adw.Toast.new("Download history cleared."))
+
+            confirmation.connect("response", on_confirmation)
+            confirmation.present(history_window)
+
+        search.connect("search-changed", apply_filter)
+        clear_button.connect("clicked", confirm_clear)
+        render_history()
+        history_window.present()
+
+    def _open_history_file(self, path: Path) -> None:
+        try:
+            Gio.AppInfo.launch_default_for_uri(
+                Gio.File.new_for_path(str(path)).get_uri(), None
+            )
+        except GLib.Error as exc:
+            self.toast_overlay.add_toast(Adw.Toast.new(f"Could not open downloaded file: {exc}"))
 
     def _on_diagnostics_clicked(self, _button: Gtk.Button) -> None:
         settings = load_settings()
