@@ -10,6 +10,7 @@ _PENDING_STATUSES = frozenset({
     "Downloading…",
     "Cancelling…",
     "Pausing…",
+    "Paused",
 })
 
 
