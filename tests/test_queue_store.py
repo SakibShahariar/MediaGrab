@@ -169,3 +169,16 @@ def test_candidate_review_state_survives_queue_persistence(tmp_path: Path) -> No
         {"url": "https://example.test/file.mp4"},
         {"url": "https://example.test/other.mp4"},
     ]
+
+
+def test_expected_checksum_survives_queue_persistence_and_invalid_values_are_dropped(tmp_path: Path) -> None:
+    path = tmp_path / "queue.json"
+    valid = "sha256:" + "a" * 64
+    save_queue([
+        {"url": "https://example.test/verified.bin", "expected_checksum": valid},
+        {"url": "https://example.test/unverified.bin", "expected_checksum": "sha512:bad"},
+    ], path)
+    assert load_queue(path) == [
+        {"url": "https://example.test/verified.bin", "expected_checksum": valid},
+        {"url": "https://example.test/unverified.bin"},
+    ]
