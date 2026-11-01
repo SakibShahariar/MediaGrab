@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from mediagrab.url_utils import redact_url
+
 MAX_HISTORY_ENTRIES = 1000
 _REQUIRED_FIELDS = ("source_url", "filename", "destination", "outcome", "timestamp")
 _CHECKSUM_STATES = {"not-requested", "passed", "failed", "incomplete"}
@@ -67,7 +69,7 @@ def append_history(entry: dict[str, Any], path: str | Path | None = None) -> Non
     if checksum_status not in _CHECKSUM_STATES:
         raise ValueError("checksum_status must be not-requested, passed, failed, or incomplete")
     normalized = {
-        "source_url": entry["source_url"],
+        "source_url": redact_url(entry["source_url"]),
         "filename": entry["filename"],
         "destination": entry["destination"],
         "size": size,
@@ -120,3 +122,17 @@ def make_history_entry(
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "checksum_status": checksum_status,
     }
+
+
+def clear_history(path: str | Path | None = None) -> None:
+    """Remove the local history file and sync its directory entry."""
+    history_path = Path(path) if path is not None else default_history_path()
+    try:
+        history_path.unlink()
+    except FileNotFoundError:
+        return
+    descriptor = os.open(history_path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
