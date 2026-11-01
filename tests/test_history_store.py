@@ -37,7 +37,7 @@ def test_history_survives_restart_and_records_timestamp(tmp_path: Path) -> None:
     assert restored[0]["size"] == 123
     assert restored[0]["outcome"] == "Completed"
     assert restored[0]["timestamp"]
-    assert path.read_text(encoding="utf-8").endswith("\\n")
+    assert path.read_text(encoding="utf-8").endswith("\n")
     assert path.stat().st_mode & 0o077 == 0
     assert path.parent.stat().st_mode & 0o077 == 0
     assert not list(path.parent.glob("*.tmp"))
