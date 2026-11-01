@@ -540,7 +540,21 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             except ValueError:
                 continue
             row = DownloadRow(self, url, task, audio_url=entry.get("audio_url"), subtitle_url=entry.get("subtitle_url"), expected_checksum=entry.get("expected_checksum"))
-            row.finish("Detected" if entry.get("candidate") is True else "Interrupted")
+            is_candidate = entry.get("candidate") is True
+            row.finish("Detected" if is_candidate else "Interrupted")
+            if not is_candidate and entry.get("interrupted_recorded") is not True:
+                parsed = urlparse(url)
+                try:
+                    append_history(make_history_entry(
+                        source_url=redact_url(url),
+                        filename=Path(parsed.path).name or parsed.netloc or "download",
+                        destination=str(self.download_directory),
+                        size=None,
+                        outcome="Interrupted",
+                        checksum_status="incomplete" if entry.get("expected_checksum") else "not-requested",
+                    ))
+                except (OSError, ValueError) as exc:
+                    _LOG.warning("Could not record interrupted download: %s", exc)
             self._rows.append(row)
             self.list_box.append(row)
         self._update_count()
@@ -594,6 +608,8 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             }
             if state == "Detected":
                 entry["candidate"] = True
+            if state == "Interrupted":
+                entry["interrupted_recorded"] = True
             entries.append(entry)
         try:
             save_queue(entries)
