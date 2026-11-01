@@ -63,3 +63,27 @@ def test_missing_ffmpeg_error_is_preserved_for_ui(tmp_path: Path, monkeypatch) -
 def test_embedded_credentials_are_rejected_for_every_task_kind(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="embedded credentials"):
         task_factory.create_download_task("https://user:secret@cdn.test/file.zip", tmp_path)
+
+
+def test_expected_checksum_is_forwarded_to_both_task_engines(tmp_path: Path, monkeypatch) -> None:
+    created = []
+
+    class FakeTask:
+        def __init__(self, url, destination, **kwargs):
+            created.append((url, destination, kwargs.get("expected_checksum")))
+
+    monkeypatch.setattr(task_factory, "DownloadTask", FakeTask)
+    monkeypatch.setattr(task_factory, "MediaStreamTask", FakeTask)
+    monkeypatch.setattr(
+        task_factory, "classify_media",
+        lambda url: MediaKind.HLS if url.endswith(".m3u8") else MediaKind.UNKNOWN,
+    )
+    checksum = "sha256:" + "a" * 64
+
+    task_factory.create_download_task("https://cdn.test/file.bin", tmp_path, expected_checksum=checksum)
+    task_factory.create_download_task("https://cdn.test/live.m3u8", tmp_path, expected_checksum=checksum)
+
+    assert created == [
+        ("https://cdn.test/file.bin", tmp_path, checksum),
+        ("https://cdn.test/live.m3u8", tmp_path, checksum),
+    ]
