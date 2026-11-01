@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import unquote, urlparse
 
+from mediagrab.checksum import ChecksumMismatchError, parse_expected_checksum, verify_file
 from mediagrab.diagnostics import get_logger, log_event
 
 
@@ -91,6 +92,7 @@ class DownloadTask:
         timeout: float = 30.0,
         chunk_size: int = 128 * 1024,
         user_agent: str = "MediaGrab/0.1",
+        expected_checksum: str | None = None,
     ) -> None:
         try:
             parsed = urlparse(url)
@@ -111,6 +113,9 @@ class DownloadTask:
         self.timeout = timeout
         self.chunk_size = chunk_size
         self.user_agent = user_agent
+        if expected_checksum is not None:
+            parse_expected_checksum(expected_checksum)
+        self.expected_checksum = expected_checksum
         self._cancel = threading.Event()
         self._pause = threading.Event()
         self._state_lock = threading.Lock()
@@ -131,6 +136,14 @@ class DownloadTask:
     def _set_state(self, state: str) -> None:
         with self._state_lock:
             self._state = state
+
+    def _verify_checksum(self, path: Path) -> None:
+        if self.expected_checksum is None:
+            return
+        try:
+            verify_file(path, self.expected_checksum)
+        except ChecksumMismatchError as exc:
+            raise DownloadError(f"Checksum verification failed: {exc}") from exc
 
     def run(self, on_progress: ProgressCallback | None = None) -> Path:
         """Perform the transfer. Call from a worker thread, not the GTK thread."""
@@ -350,6 +363,7 @@ class DownloadTask:
                         )
                 break
 
+            self._verify_checksum(partial)
             os.replace(partial, target)
             try:
                 metadata.unlink(missing_ok=True)
@@ -383,6 +397,7 @@ class DownloadTask:
                         if self._cancel.is_set():
                             self._set_state("cancelled")
                             raise DownloadError("Download cancelled")
+                        self._verify_checksum(partial)
                         os.replace(partial, target)
                         try:
                             metadata.unlink(missing_ok=True)
