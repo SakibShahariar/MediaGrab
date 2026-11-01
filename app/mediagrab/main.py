@@ -20,6 +20,7 @@ from mediagrab.media_inspector import ManifestInspection, inspect_manifest, form
 from mediagrab.capture import MediaKind, HLSVariant
 from mediagrab.task_factory import create_download_task
 from mediagrab.queue_store import load_queue, save_queue
+from mediagrab.duplicate_detection import has_pending_duplicate
 from mediagrab.settings_store import load_settings, save_settings
 from mediagrab.diagnostics import configure_logging, get_logger, log_event, read_diagnostics
 from mediagrab.url_utils import is_valid_http_url, redact_url
@@ -720,6 +721,17 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         """Validate and enqueue a URL from either the UI or browser bridge."""
         if not is_valid_http_url(url):
             self.toast_overlay.add_toast(Adw.Toast.new("Enter a valid credential-free HTTP(S) URL."))
+            return False
+        if has_pending_duplicate(
+            url,
+            (
+                (item.url, item.status_label.get_text())
+                for item in self._rows
+            ),
+        ):
+            self.toast_overlay.add_toast(
+                Adw.Toast.new("This URL is already queued or downloading.")
+            )
             return False
         try:
             task = create_download_task(url, self.download_directory, audio_url=audio_url, subtitle_url=subtitle_url)
