@@ -20,6 +20,7 @@ from mediagrab.media_inspector import ManifestInspection, inspect_manifest, form
 from mediagrab.capture import MediaKind, HLSVariant
 from mediagrab.task_factory import create_download_task
 from mediagrab.queue_store import load_queue, save_queue
+from mediagrab.history_store import append_history, make_history_entry
 from mediagrab.duplicate_detection import has_pending_duplicate
 from mediagrab.settings_store import load_settings, save_settings
 from mediagrab.diagnostics import configure_logging, get_logger, log_event, read_diagnostics
@@ -871,6 +872,30 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         row.is_active = False
         self._active_downloads.discard(row)
         row.finish(state, detail if state == "Failed" else None)
+        if state in {"Completed", "Failed", "Cancelled", "Paused"}:
+            if state == "Completed":
+                target = Path(detail)
+                filename = target.name
+                destination = str(target.parent)
+                try:
+                    size = target.stat().st_size
+                except OSError:
+                    size = None
+            else:
+                parsed = urlparse(row.url)
+                filename = Path(parsed.path).name or parsed.netloc or "download"
+                destination = str(self.download_directory)
+                size = None
+            try:
+                append_history(make_history_entry(
+                    source_url=redact_url(row.url),
+                    filename=filename,
+                    destination=destination,
+                    size=size,
+                    outcome=state,
+                ))
+            except (OSError, ValueError) as exc:
+                _LOG.warning("Could not persist download history: %s", exc)
         if state == "Completed":
             self._completed_count += 1
         self._send_download_notification(row, state, detail)
