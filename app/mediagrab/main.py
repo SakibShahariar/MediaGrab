@@ -317,8 +317,13 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         toolbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         search = Gtk.SearchEntry()
         search.set_hexpand(True)
-        search.set_placeholder_text("Search history by filename, URL, status, or destination")
+        search.set_placeholder_text("Search history by filename, URL, or destination")
         toolbar.append(search)
+        status_filter = Gtk.DropDown.new_from_strings([
+            "All statuses", "Completed", "Failed", "Cancelled", "Paused"
+        ])
+        status_filter.set_tooltip_text("Filter history by outcome")
+        toolbar.append(status_filter)
         clear_button = Gtk.Button(label="Clear history")
         clear_button.add_css_class("destructive-action")
         toolbar.append(clear_button)
@@ -331,7 +336,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         scroller.set_vexpand(True)
         scroller.set_child(list_box)
         content.append(scroller)
-        rows: list[tuple[Adw.ActionRow, str]] = []
+        rows: list[tuple[Adw.ActionRow, str, str]] = []
 
         def render_history() -> None:
             child = list_box.get_first_child()
@@ -352,7 +357,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 )
                 row = Adw.ActionRow(title=item["filename"], subtitle=subtitle)
                 search_text = " ".join(str(value) for value in item.values()).casefold()
-                rows.append((row, search_text))
+                rows.append((row, search_text, item["outcome"]))
                 if item["outcome"] == "Completed":
                     target = Path(item["destination"]) / item["filename"]
                     if target.is_file():
@@ -366,8 +371,12 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
         def apply_filter(*_args: object) -> None:
             query = search.get_text().strip().casefold()
-            for row, searchable in rows:
-                row.set_visible(not query or query in searchable)
+            selected_status = status_filter.get_selected()
+            statuses = ("All statuses", "Completed", "Failed", "Cancelled", "Paused")
+            for row, searchable, outcome in rows:
+                matches_search = not query or query in searchable
+                matches_status = selected_status == 0 or outcome == statuses[selected_status]
+                row.set_visible(matches_search and matches_status)
 
         def confirm_clear(_button: Gtk.Button) -> None:
             confirmation = Adw.AlertDialog(
@@ -395,6 +404,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             confirmation.present(history_window)
 
         search.connect("search-changed", apply_filter)
+        status_filter.connect("notify::selected", apply_filter)
         clear_button.connect("clicked", confirm_clear)
         render_history()
         history_window.present()
