@@ -16,7 +16,7 @@ from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from mediagrab.downloader import DownloadError, DownloadPaused, DownloadProgress, DownloadTask
 from mediagrab.formatting import format_eta
-from mediagrab.media_inspector import ManifestInspection, inspect_manifest
+from mediagrab.media_inspector import ManifestInspection, inspect_manifest, format_dash_representation_label
 from mediagrab.capture import MediaKind, HLSVariant
 from mediagrab.task_factory import create_download_task
 from mediagrab.queue_store import load_queue, save_queue
@@ -578,6 +578,20 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             variants = sorted(result.variants, key=lambda item: (item.height or 0, item.bandwidth or 0))
             for variant in variants:
                 choices.append((self._variant_label(variant), variant.url))
+        elif result.kind is MediaKind.DASH:
+            # A representation is independently downloadable only when the
+            # manifest declares a direct/inherited BaseURL. SegmentTemplate,
+            # SegmentTimeline, and SegmentList entries need a segment-aware
+            # downloader and must not be presented as direct file URLs.
+            for representation in sorted(
+                result.representations,
+                key=lambda item: (item.height or 0, item.bandwidth or 0),
+            ):
+                if representation.url:
+                    choices.append((
+                        format_dash_representation_label(representation),
+                        representation.url,
+                    ))
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         for side in ("top", "bottom", "start", "end"):
