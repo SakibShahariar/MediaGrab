@@ -36,6 +36,7 @@ def test_history_survives_restart_and_records_timestamp(tmp_path: Path) -> None:
     assert restored[0]["source_url"] == entry["source_url"]
     assert restored[0]["size"] == 123
     assert restored[0]["outcome"] == "Completed"
+    assert restored[0]["checksum_status"] == "not-requested"
     assert restored[0]["timestamp"]
     assert path.read_text(encoding="utf-8").endswith("\n")
     assert path.stat().st_mode & 0o077 == 0
@@ -77,3 +78,12 @@ def test_default_history_path_respects_xdg_state_home(monkeypatch, tmp_path: Pat
     assert default_history_path() == tmp_path / "state" / "mediagrab" / "history.json"
     monkeypatch.setenv("XDG_STATE_HOME", "relative")
     assert default_history_path() == Path.home() / ".local" / "state" / "mediagrab" / "history.json"
+
+
+def test_history_persists_checksum_verification_status(tmp_path: Path) -> None:
+    path = tmp_path / "history.json"
+    append_history({**_entry(), "checksum_status": "passed"}, path)
+    append_history({**_entry(2), "checksum_status": "failed"}, path)
+    assert [item["checksum_status"] for item in load_history(path)] == ["passed", "failed"]
+    with pytest.raises(ValueError, match="checksum_status"):
+        append_history({**_entry(), "checksum_status": "unknown"}, path)
