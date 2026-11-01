@@ -82,6 +82,8 @@ def load_queue(path: str | Path | None = None) -> list[QueueEntry]:
                 entry[field] = value
         if item.get("candidate") is True:
             entry["candidate"] = True
+        if item.get("interrupted_recorded") is True:
+            entry["interrupted_recorded"] = True
         if _valid_checksum(item.get("expected_checksum")):
             entry["expected_checksum"] = item["expected_checksum"]
         entries.append(entry)
@@ -103,6 +105,8 @@ def save_queue(entries: list[QueueEntry], path: str | Path | None = None) -> Non
                 entry[field] = value
         if item.get("candidate") is True:
             entry["candidate"] = True
+        if item.get("interrupted_recorded") is True:
+            entry["interrupted_recorded"] = True
         if _valid_checksum(item.get("expected_checksum")):
             entry["expected_checksum"] = item["expected_checksum"]
         normalized.append(entry)
