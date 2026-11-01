@@ -182,3 +182,13 @@ def test_expected_checksum_survives_queue_persistence_and_invalid_values_are_dro
         {"url": "https://example.test/verified.bin", "expected_checksum": valid},
         {"url": "https://example.test/unverified.bin"},
     ]
+
+
+def test_interrupted_history_marker_survives_queue_persistence(tmp_path: Path) -> None:
+    path = tmp_path / "queue.json"
+    entry = {
+        "url": "https://example.test/file.bin",
+        "interrupted_recorded": True,
+    }
+    save_queue([entry], path)
+    assert load_queue(path) == [entry]
