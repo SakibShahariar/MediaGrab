@@ -15,6 +15,7 @@ def create_download_task(
     *,
     audio_url: str | None = None,
     subtitle_url: str | None = None,
+    expected_checksum: str | None = None,
 ):
     """Create a transfer task, preserving explicitly selected alternate tracks."""
     parsed = urlparse(url)
@@ -24,7 +25,8 @@ def create_download_task(
     if kind in {MediaKind.HLS, MediaKind.DASH} or audio_url or subtitle_url:
         if audio_url or subtitle_url:
             return MediaStreamTask(
-                url, destination, audio_url=audio_url, subtitle_url=subtitle_url
+                url, destination, audio_url=audio_url, subtitle_url=subtitle_url,
+                expected_checksum=expected_checksum,
             )
-        return MediaStreamTask(url, destination)
-    return DownloadTask(url, destination)
+        return MediaStreamTask(url, destination, expected_checksum=expected_checksum)
+    return DownloadTask(url, destination, expected_checksum=expected_checksum)
