@@ -10,6 +10,7 @@ from typing import Any
 
 MAX_HISTORY_ENTRIES = 1000
 _REQUIRED_FIELDS = ("source_url", "filename", "destination", "outcome", "timestamp")
+_CHECKSUM_STATES = {"not-requested", "passed", "failed", "incomplete"}
 
 
 def default_history_path() -> Path:
@@ -46,6 +47,11 @@ def load_history(path: str | Path | None = None) -> list[dict[str, Any]]:
             "size": size,
             "outcome": item["outcome"],
             "timestamp": item["timestamp"],
+            "checksum_status": (
+                item.get("checksum_status")
+                if item.get("checksum_status") in _CHECKSUM_STATES
+                else "not-requested"
+            ),
         })
     return entries
 
@@ -57,6 +63,9 @@ def append_history(entry: dict[str, Any], path: str | Path | None = None) -> Non
     size = entry.get("size")
     if size is not None and (isinstance(size, bool) or not isinstance(size, int) or size < 0):
         raise ValueError("History size must be a non-negative integer or null")
+    checksum_status = entry.get("checksum_status", "not-requested")
+    if checksum_status not in _CHECKSUM_STATES:
+        raise ValueError("checksum_status must be not-requested, passed, failed, or incomplete")
     normalized = {
         "source_url": entry["source_url"],
         "filename": entry["filename"],
@@ -64,6 +73,7 @@ def append_history(entry: dict[str, Any], path: str | Path | None = None) -> Non
         "size": size,
         "outcome": entry["outcome"],
         "timestamp": entry["timestamp"],
+        "checksum_status": checksum_status,
     }
     history_path = Path(path) if path is not None else default_history_path()
     history_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -97,7 +107,8 @@ def append_history(entry: dict[str, Any], path: str | Path | None = None) -> Non
 
 
 def make_history_entry(
-    *, source_url: str, filename: str, destination: str, size: int | None, outcome: str
+    *, source_url: str, filename: str, destination: str, size: int | None,
+    outcome: str, checksum_status: str = "not-requested"
 ) -> dict[str, Any]:
     """Create a timestamped record without retaining transfer credentials."""
     return {
@@ -107,4 +118,5 @@ def make_history_entry(
         "size": size,
         "outcome": outcome,
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "checksum_status": checksum_status,
     }
