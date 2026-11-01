@@ -9,6 +9,7 @@ import pytest
 from mediagrab.history_store import (
     MAX_HISTORY_ENTRIES,
     append_history,
+    clear_history,
     default_history_path,
     load_history,
     make_history_entry,
@@ -87,3 +88,20 @@ def test_history_persists_checksum_verification_status(tmp_path: Path) -> None:
     assert [item["checksum_status"] for item in load_history(path)] == ["passed", "failed"]
     with pytest.raises(ValueError, match="checksum_status"):
         append_history({**_entry(), "checksum_status": "unknown"}, path)
+
+
+def test_history_redacts_signed_url_and_can_be_cleared(tmp_path: Path) -> None:
+    path = tmp_path / "history.json"
+    entry = make_history_entry(
+        source_url="https://example.test/video.mp4?token=private#secret",
+        filename="video.mp4", destination=str(tmp_path / "video.mp4"),
+        size=10, outcome="Completed",
+    )
+    append_history(entry, path)
+    stored = load_history(path)[0]["source_url"]
+    assert "private" not in stored
+    assert "secret" not in stored
+    assert stored.endswith("?…#…")
+    clear_history(path)
+    assert load_history(path) == []
+    assert not path.exists()
