@@ -146,7 +146,7 @@ with open(os.environ["MEDIAGRAB_CAPTURE"], "w", encoding="utf-8") as output:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         env=environment,
-        timeout=10,
+        timeout=30,
         check=False,
     )
 
