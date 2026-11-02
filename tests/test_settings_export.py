@@ -74,3 +74,51 @@ def test_invalid_exports_are_rejected_without_changing_existing_settings(
         import_settings(exported, current)
 
     assert load_settings(current) == original
+
+
+def test_import_creates_atomic_backup_of_previous_settings(tmp_path: Path) -> None:
+    current = tmp_path / "settings.json"
+    exported = tmp_path / "import.json"
+    original = {
+        "download_directory": str(tmp_path / "Original"),
+        "diagnostics_level": "WARNING",
+        "max_concurrent_downloads": 4,
+        "notifications_enabled": True,
+    }
+    replacement = {
+        "download_directory": str(tmp_path / "Replacement"),
+        "diagnostics_level": "DEBUG",
+        "max_concurrent_downloads": 6,
+        "notifications_enabled": False,
+    }
+    save_settings(original, current)
+    exported.write_text(json.dumps({
+        "format": "mediagrab-settings",
+        "version": 1,
+        "settings": replacement,
+    }), encoding="utf-8")
+
+    import_settings(exported, current)
+
+    backup = current.with_suffix(".json.bak")
+    assert json.loads(backup.read_text(encoding="utf-8")) == original
+    assert load_settings(current) == replacement
+    assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_import_can_skip_settings_backup(tmp_path: Path) -> None:
+    current = tmp_path / "settings.json"
+    exported = tmp_path / "import.json"
+    original = {"download_directory": str(tmp_path / "Original")}
+    replacement = {"download_directory": str(tmp_path / "Replacement")}
+    save_settings(original, current)
+    exported.write_text(json.dumps({
+        "format": "mediagrab-settings",
+        "version": 1,
+        "settings": replacement,
+    }), encoding="utf-8")
+
+    import_settings(exported, current, backup=False)
+
+    assert load_settings(current)["download_directory"] == replacement["download_directory"]
+    assert not current.with_suffix(".json.bak").exists()
