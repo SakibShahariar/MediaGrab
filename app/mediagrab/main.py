@@ -689,7 +689,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                     self.destination_label.set_text(f"Files are saved to {self.download_directory}")
                     self.footer_label.set_text(self._footer_text())
                     self._start_next_downloads()
-                    message = "Settings imported."
+                    message = "Settings imported; a local backup was saved when previous settings existed."
             except (OSError, ValueError) as exc:
                 self.toast_overlay.add_toast(Adw.Toast.new(f"Could not {'export' if save else 'import'} settings: {exc}"))
                 return
