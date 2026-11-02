@@ -73,3 +73,49 @@ def test_search_is_case_insensitive_and_matches_url_or_destination(entry):
     assert matches_history_entry(entry, query="CDN.EXAMPLE")
     assert matches_history_entry(entry, query="/downloads")
     assert not matches_history_entry(entry, query="missing")
+
+
+
+def test_last_used_filter_preferences_round_trip_and_validation(tmp_path):
+    from mediagrab.history_filter import (
+        load_history_filter_preferences,
+        save_history_filter_preferences,
+    )
+
+    path = tmp_path / "history-filters.json"
+    selected = {
+        "query": "Example video",
+        "status": "Completed",
+        "file_type": "Video",
+        "domain": "example.com",
+        "date_range": "Last 7 days",
+        "size_filter": "Under 100 MB",
+    }
+    save_history_filter_preferences(selected, path)
+    assert load_history_filter_preferences(path) == selected
+
+
+def test_invalid_or_corrupt_filter_preferences_fall_back_safely(tmp_path):
+    import json
+
+    from mediagrab.history_filter import (
+        load_history_filter_preferences,
+        save_history_filter_preferences,
+    )
+
+    path = tmp_path / "history-filters.json"
+    path.write_text(json.dumps({
+        "status": "Unknown",
+        "file_type": "Video",
+        "query": "x" * 300,
+        "domain": 42,
+    }), encoding="utf-8")
+    restored = load_history_filter_preferences(path)
+    assert restored["status"] == "All statuses"
+    assert restored["file_type"] == "Video"
+    assert len(restored["query"]) == 256
+    assert restored["domain"] == ""
+    path.write_text("{broken", encoding="utf-8")
+    assert load_history_filter_preferences(path)["file_type"] == "All files"
+    with pytest.raises(ValueError, match="status"):
+        save_history_filter_preferences({"status": "Unknown"}, path)
