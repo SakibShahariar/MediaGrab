@@ -37,7 +37,7 @@ def test_firefox_registration_uses_exact_extension_allowlist(tmp_path: Path) -> 
 
 @pytest.mark.parametrize(
     "browser",
-    ["chromium", "chrome", "brave", "vivaldi"],
+    ["chromium", "chrome", "brave", "vivaldi", "edge"],
 )
 def test_chromium_family_registration_requires_and_scopes_extension_id(
     tmp_path: Path, browser: str
