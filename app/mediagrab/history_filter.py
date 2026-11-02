@@ -77,3 +77,85 @@ def matches_history_entry(
         if not isinstance(size, int) or isinstance(size, bool) or size <= 1024 * 1024 * 1024:
             return False
     return True
+
+
+_FILTER_PREFERENCES = {
+    "query": "",
+    "status": "All statuses",
+    "file_type": "All files",
+    "domain": "",
+    "date_range": "Any time",
+    "size_filter": "Any size",
+}
+_ALLOWED_FILTER_VALUES = {
+    "status": {"All statuses", "Completed", "Failed", "Cancelled", "Paused"},
+    "file_type": {"All files", "Video", "Audio", "HLS/DASH", "Subtitles", "Other"},
+    "date_range": {"Any time", "Last 24 hours", "Last 7 days", "Last 30 days"},
+    "size_filter": {"Any size", "Unknown size", "Under 100 MB", "100 MB–1 GB", "Over 1 GB"},
+}
+
+
+def default_history_filter_path() -> Path:
+    """Return the per-user XDG config path for the last-used history filters."""
+    configured = os.environ.get("XDG_CONFIG_HOME", "").strip()
+    config_home = Path(configured).expanduser() if configured else Path.home() / ".config"
+    if not config_home.is_absolute():
+        config_home = Path.home() / ".config"
+    return config_home / "mediagrab" / "history-filters.json"
+
+
+def load_history_filter_preferences(path: str | Path | None = None) -> dict[str, str]:
+    """Load a validated last-used filter combination; ignore corrupt preferences."""
+    preferences = dict(_FILTER_PREFERENCES)
+    try:
+        raw = json.loads((Path(path) if path is not None else default_history_filter_path()).read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return preferences
+    if not isinstance(raw, dict):
+        return preferences
+    for key, allowed in _ALLOWED_FILTER_VALUES.items():
+        value = raw.get(key)
+        if isinstance(value, str) and value in allowed:
+            preferences[key] = value
+    for key, limit in (("query", 256), ("domain", 253)):
+        value = raw.get(key)
+        if isinstance(value, str):
+            preferences[key] = value[:limit]
+    return preferences
+
+
+def save_history_filter_preferences(
+    preferences: dict[str, str], path: str | Path | None = None
+) -> None:
+    """Atomically persist a validated last-used history filter combination."""
+    normalized = dict(_FILTER_PREFERENCES)
+    for key, allowed in _ALLOWED_FILTER_VALUES.items():
+        value = preferences.get(key, normalized[key])
+        if not isinstance(value, str) or value not in allowed:
+            raise ValueError(f"Invalid history filter preference: {key}")
+        normalized[key] = value
+    for key, limit in (("query", 256), ("domain", 253)):
+        value = preferences.get(key, normalized[key])
+        if not isinstance(value, str):
+            raise ValueError(f"Invalid history filter preference: {key}")
+        normalized[key] = value[:limit]
+
+    destination = Path(path) if path is not None else default_history_filter_path()
+    destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd, temporary_name = tempfile.mkstemp(
+        prefix=f".{destination.name}.", suffix=".tmp", dir=destination.parent
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as output:
+            json.dump(normalized, output, ensure_ascii=False, indent=2)
+            output.write("\\n")
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, destination)
+    except Exception:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
