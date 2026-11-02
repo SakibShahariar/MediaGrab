@@ -8,6 +8,7 @@ def test_core_shortcuts_cover_add_search_and_history() -> None:
         "add-download": "<Control>n",
         "focus-search": "<Control>f",
         "open-history": "<Control><Shift>h",
+        "open-command-palette": "<Control>k",
     }
 
 
