@@ -174,8 +174,37 @@ def export_settings(destination: str | Path, settings_path: str | Path | None = 
         raise
 
 
-def import_settings(source: str | Path, settings_path: str | Path | None = None) -> None:
-    """Validate a versioned settings export completely before replacing preferences."""
+def _backup_settings_file(settings_path: Path) -> Path | None:
+    """Atomically preserve the current settings file beside it before replacement."""
+    if not settings_path.is_file():
+        return None
+    backup_path = settings_path.with_suffix(settings_path.suffix + ".bak")
+    fd, temporary_name = tempfile.mkstemp(
+        prefix=f".{backup_path.name}.", suffix=".tmp", dir=settings_path.parent
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(fd, "wb") as output:
+            output.write(settings_path.read_bytes())
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, backup_path)
+    except Exception:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+    return backup_path
+
+
+def import_settings(
+    source: str | Path,
+    settings_path: str | Path | None = None,
+    *,
+    backup: bool = True,
+) -> None:
+    """Validate an export, back up current preferences, then replace them."""
     try:
         payload = json.loads(Path(source).read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
@@ -190,4 +219,7 @@ def import_settings(source: str | Path, settings_path: str | Path | None = None)
     if not isinstance(raw_settings, dict):
         raise ValueError("settings export must contain a settings object")
     validated = _validated_settings(raw_settings)
-    save_settings(validated, settings_path)
+    target = Path(settings_path) if settings_path is not None else default_settings_path()
+    if backup:
+        _backup_settings_file(target)
+    save_settings(validated, target)
