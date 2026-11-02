@@ -26,7 +26,7 @@ Direct HTTP(S) downloads can be paused and resumed; pause is cooperative and may
 ## Current implementation
 
 - GTK4/libadwaita queue with progress, cancellation, retry, and a configurable global concurrency limit (1–10 simultaneous downloads; default 3).
-- Configurable destination folder, persisted settings, queue recovery, and ETA display.
+- Configurable destination folder, persisted settings, versioned JSON settings import/export (excluding unknown fields and secrets), queue recovery, and ETA display.
 - Optional expected SHA-256, SHA-1, or MD5 verification for direct and FFmpeg-backed downloads; mismatches fail before output finalization, and verification outcomes are recorded in history.
 - Persistent local download history for completed, failed, cancelled, paused, and interrupted transfers, with search, outcome filtering, clear-history confirmation, and open-file actions.
 - Combine history search with status, inferred file type, source-domain, date-window, and file-size filters; the last-used filter combination is restored when the history window is reopened.
