@@ -22,7 +22,7 @@ from mediagrab.capture import MediaKind, HLSVariant
 from mediagrab.task_factory import create_download_task
 from mediagrab.queue_store import load_queue, save_queue
 from mediagrab.history_store import append_history, make_history_entry, load_history, clear_history
-from mediagrab.history_filter import matches_history_entry
+from mediagrab.history_filter import (\n    matches_history_entry, load_history_filter_preferences,\n    save_history_filter_preferences,\n)
 from mediagrab.duplicate_detection import has_pending_duplicate
 from mediagrab.settings_store import load_settings, save_settings
 from mediagrab.diagnostics import configure_logging, get_logger, log_event, read_diagnostics
