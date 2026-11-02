@@ -24,7 +24,7 @@ from mediagrab.queue_store import load_queue, save_queue
 from mediagrab.history_store import append_history, make_history_entry, load_history, clear_history
 from mediagrab.history_filter import matches_history_entry, load_history_filter_preferences, save_history_filter_preferences
 from mediagrab.duplicate_detection import has_pending_duplicate
-from mediagrab.settings_store import export_settings, import_settings, load_settings, save_settings
+from mediagrab.settings_store import export_settings, import_settings, load_settings, restore_settings_backup, save_settings
 from mediagrab.diagnostics import configure_logging, get_logger, log_event, read_diagnostics
 from mediagrab.url_utils import is_valid_http_url, redact_url
 from mediagrab.cli import parse_command
@@ -615,8 +615,11 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         export_button.connect("clicked", self._on_export_settings)
         import_button = Gtk.Button(label="Import settings…")
         import_button.connect("clicked", self._on_import_settings)
+        restore_button = Gtk.Button(label="Restore previous backup")
+        restore_button.connect("clicked", self._on_restore_settings_backup)
         settings_actions.append(export_button)
         settings_actions.append(import_button)
+        settings_actions.append(restore_button)
         content.append(settings_actions)
 
         dialog = Adw.AlertDialog(
@@ -703,6 +706,37 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
     def _on_import_settings(self, _button: Gtk.Button) -> None:
         self._choose_settings_file(save=False)
+
+    def _on_restore_settings_backup(self, _button: Gtk.Button) -> None:
+        dialog = Adw.AlertDialog(
+            heading="Restore previous settings?",
+            body="This replaces current preferences with the local backup created before the last settings import.",
+        )
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("restore", "Restore")
+        dialog.set_default_response("cancel")
+        dialog.set_close_response("cancel")
+        dialog.set_response_appearance("restore", Adw.ResponseAppearance.DESTRUCTIVE)
+
+        def on_response(_dialog: Adw.AlertDialog, response: str) -> None:
+            if response != "restore":
+                return
+            try:
+                settings = restore_settings_backup()
+                self.download_directory = Path(settings["download_directory"])
+                self.max_concurrent_downloads = int(settings["max_concurrent_downloads"])
+                self.notifications_enabled = bool(settings["notifications_enabled"])
+                configure_logging(settings["diagnostics_level"])
+                self.destination_label.set_text(f"Files are saved to {self.download_directory}")
+                self.footer_label.set_text(self._footer_text())
+                self._start_next_downloads()
+            except (OSError, ValueError) as exc:
+                self.toast_overlay.add_toast(Adw.Toast.new(f"Could not restore settings backup: {exc}"))
+                return
+            self.toast_overlay.add_toast(Adw.Toast.new("Previous settings restored."))
+
+        dialog.connect("response", on_response)
+        dialog.present(self)
 
     def _on_copy_diagnostics(self, _button: Gtk.Button) -> None:
         try:
