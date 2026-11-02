@@ -3,12 +3,13 @@
 from mediagrab.shortcuts import COMMAND_PALETTE_ACTIONS, SHORTCUTS
 
 
-def test_core_shortcuts_cover_add_search_and_history() -> None:
+def test_core_shortcuts_cover_add_search_history_and_diagnostics() -> None:
     assert SHORTCUTS == {
         "add-download": "<Control>n",
         "focus-search": "<Control>f",
         "open-history": "<Control><Shift>h",
         "open-command-palette": "<Control>k",
+        "open-diagnostics": "<Control><Shift>d",
     }
 
 
@@ -21,4 +22,5 @@ def test_command_palette_exposes_core_actions() -> None:
         ("Add download", "add-download"),
         ("Search downloads", "focus-search"),
         ("Open history", "open-history"),
+        ("Open diagnostics", "open-diagnostics"),
     )
