@@ -22,7 +22,7 @@ from mediagrab.capture import MediaKind, HLSVariant
 from mediagrab.task_factory import create_download_task
 from mediagrab.queue_store import load_queue, save_queue
 from mediagrab.history_store import append_history, make_history_entry, load_history, clear_history
-from mediagrab.history_filter import (\n    matches_history_entry, load_history_filter_preferences,\n    save_history_filter_preferences,\n)
+from mediagrab.history_filter import matches_history_entry, load_history_filter_preferences, save_history_filter_preferences
 from mediagrab.duplicate_detection import has_pending_duplicate
 from mediagrab.settings_store import load_settings, save_settings
 from mediagrab.diagnostics import configure_logging, get_logger, log_event, read_diagnostics
@@ -316,15 +316,18 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         content.set_margin_end(20)
         history_window.set_content(content)
 
+        preferences = load_history_filter_preferences()
         toolbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         search = Gtk.SearchEntry()
         search.set_hexpand(True)
         search.set_placeholder_text("Search history by filename, URL, or destination")
+        search.set_text(preferences["query"])
         toolbar.append(search)
         status_filter = Gtk.DropDown.new_from_strings([
             "All statuses", "Completed", "Failed", "Cancelled", "Paused"
         ])
         status_filter.set_tooltip_text("Filter history by outcome")
+        status_filter.set_selected(("All statuses", "Completed", "Failed", "Cancelled", "Paused").index(preferences["status"]))
         toolbar.append(status_filter)
         clear_button = Gtk.Button(label="Clear history")
         clear_button.add_css_class("destructive-action")
@@ -337,24 +340,28 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         ])
         file_type_filter.set_hexpand(True)
         file_type_filter.set_tooltip_text("Filter by file type")
+        file_type_filter.set_selected(("All files", "Video", "Audio", "HLS/DASH", "Subtitles", "Other").index(preferences["file_type"]))
         filter_bar.append(file_type_filter)
         date_filter = Gtk.DropDown.new_from_strings([
             "Any time", "Last 24 hours", "Last 7 days", "Last 30 days"
         ])
         date_filter.set_hexpand(True)
         date_filter.set_tooltip_text("Filter by date")
+        date_filter.set_selected(("Any time", "Last 24 hours", "Last 7 days", "Last 30 days").index(preferences["date_range"]))
         filter_bar.append(date_filter)
         size_filter = Gtk.DropDown.new_from_strings([
             "Any size", "Unknown size", "Under 100 MB", "100 MB–1 GB", "Over 1 GB"
         ])
         size_filter.set_hexpand(True)
         size_filter.set_tooltip_text("Filter by file size")
+        size_filter.set_selected(("Any size", "Unknown size", "Under 100 MB", "100 MB–1 GB", "Over 1 GB").index(preferences["size_filter"]))
         filter_bar.append(size_filter)
         content.append(filter_bar)
 
         domain_filter = Gtk.Entry()
         domain_filter.set_placeholder_text("Filter by source domain (e.g. example.com)")
         domain_filter.set_input_purpose(Gtk.InputPurpose.FREE_FORM)
+        domain_filter.set_text(preferences["domain"])
         content.append(domain_filter)
 
         list_box = Gtk.ListBox()
@@ -453,6 +460,26 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         size_filter.connect("notify::selected", apply_filter)
         domain_filter.connect("changed", apply_filter)
         clear_button.connect("clicked", confirm_clear)
+
+        def save_filter_preferences(_window: Adw.Window) -> bool:
+            status_options = ("All statuses", "Completed", "Failed", "Cancelled", "Paused")
+            type_options = ("All files", "Video", "Audio", "HLS/DASH", "Subtitles", "Other")
+            date_options = ("Any time", "Last 24 hours", "Last 7 days", "Last 30 days")
+            size_options = ("Any size", "Unknown size", "Under 100 MB", "100 MB–1 GB", "Over 1 GB")
+            try:
+                save_history_filter_preferences({
+                    "query": search.get_text(),
+                    "status": status_options[status_filter.get_selected()],
+                    "file_type": type_options[file_type_filter.get_selected()],
+                    "domain": domain_filter.get_text(),
+                    "date_range": date_options[date_filter.get_selected()],
+                    "size_filter": size_options[size_filter.get_selected()],
+                })
+            except (OSError, ValueError) as exc:
+                self.toast_overlay.add_toast(Adw.Toast.new(f"Could not save history filters: {exc}"))
+            return False
+
+        history_window.connect("close-request", save_filter_preferences)
         render_history()
         history_window.present()
 
