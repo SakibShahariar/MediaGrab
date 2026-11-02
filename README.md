@@ -30,7 +30,7 @@ Direct HTTP(S) downloads can be paused and resumed; pause is cooperative and may
 - Optional expected SHA-256, SHA-1, or MD5 verification for direct and FFmpeg-backed downloads; mismatches fail before output finalization, and verification outcomes are recorded in history.
 - Persistent local download history for completed, failed, cancelled, paused, and interrupted transfers, with search, outcome filtering, clear-history confirmation, and open-file actions.
 - Combine history search with status, inferred file type, source-domain, date-window, and file-size filters; the last-used filter combination is restored when the history window is reopened.
-- Keyboard shortcuts: `Ctrl+N` adds a download, `Ctrl+F` focuses queue search, `Ctrl+Shift+H` opens download history, `Ctrl+Shift+D` opens diagnostics, and `Ctrl+K` opens a command palette for common actions.
+- Keyboard shortcuts: `Ctrl+N` adds a download, `Ctrl+F` focuses queue search, `Ctrl+Shift+H` opens download history, `Ctrl+Shift+D` opens diagnostics, and `Ctrl+K` opens a command palette. With focus inside a queue row, `Ctrl+Shift+P` pauses/resumes, `Ctrl+Shift+R` retries, `Ctrl+Shift+X` cancels, and `Ctrl+Shift+O` opens a completed file.
 - Optional desktop notifications for completed, failed, and paused downloads, with an Open file action for completed downloads. The desktop notification service controls Do Not Disturb behavior.
 - HTTP(S) transfers with safe filenames, automatic numbered names for collisions, partial files, validator-aware resume, cooperative pause/resume, cancellation, and atomic finalization.
 - Optional FFmpeg-backed HLS/DASH downloads, collision-safe numbered MKV outputs, stream-copy remuxing, progress and cancellation.
