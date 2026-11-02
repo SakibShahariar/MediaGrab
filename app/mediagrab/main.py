@@ -87,6 +87,7 @@ class DownloadRow(Adw.ActionRow):
         self.add_suffix(self.status_label)
 
         self.progress = Gtk.ProgressBar()
+        set_accessible_label(self.progress, "Download progress")
         self.progress.set_valign(Gtk.Align.CENTER)
         self.progress.set_size_request(120, -1)
         self.add_suffix(self.progress)
@@ -290,6 +291,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         heading.append(self.clear_completed_button)
 
         self.search_entry = Gtk.SearchEntry()
+        set_accessible_label(self.search_entry, "Search downloads")
         self.search_entry.set_placeholder_text("Search downloads")
         self.search_entry.set_tooltip_text("Search by filename or source URL (Ctrl+F)")
         self.search_entry.connect("search-changed", self._on_search_changed)
