@@ -4,4 +4,5 @@ SHORTCUTS = {
     "add-download": "<Control>n",
     "focus-search": "<Control>f",
     "open-history": "<Control><Shift>h",
+    "open-command-palette": "<Control>k",
 }
