@@ -74,6 +74,7 @@ def test_invalid_exports_are_rejected_without_changing_existing_settings(
         import_settings(exported, current)
 
     assert load_settings(current) == original
+    assert not current.with_suffix(".json.bak").exists()
 
 
 def test_import_creates_atomic_backup_of_previous_settings(tmp_path: Path) -> None:
