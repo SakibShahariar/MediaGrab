@@ -332,6 +332,8 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             self.search_entry.grab_focus()
         elif action_name == "open-history":
             self._on_history_clicked(None)
+        elif action_name == "open-diagnostics":
+            self._on_diagnostics_clicked(None)
 
     def _footer_text(self) -> str:
         return (
@@ -1272,6 +1274,8 @@ class MediaGrabApplication(Adw.Application):
             window.search_entry.grab_focus()
         elif action_name == "open-history":
             window._on_history_clicked(None)
+        elif action_name == "open-diagnostics":
+            window._on_diagnostics_clicked(None)
         elif action_name == "open-command-palette":
             window.command_palette.popup()
 
