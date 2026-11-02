@@ -156,7 +156,7 @@ def export_settings(destination: str | Path, settings_path: str | Path | None = 
         "format": SETTINGS_EXPORT_FORMAT,
         "version": SETTINGS_EXPORT_VERSION,
         "settings": settings,
-    }, indent=2) + "\\n"
+    }, indent=2) + "\n"
     target = Path(destination)
     target.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary_name = tempfile.mkstemp(
