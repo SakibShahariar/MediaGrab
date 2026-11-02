@@ -47,6 +47,11 @@ def format_bytes(value: float) -> str:
     return f"{amount:.1f} GB/s"
 
 
+def set_accessible_label(widget: Gtk.Widget, label: str) -> None:
+    """Expose a concise name to assistive technology for icon-only controls."""
+    widget.update_property([Gtk.AccessibleProperty.LABEL], [label])
+
+
 def format_size(value: int) -> str:
     amount = float(value)
     for unit in ("B", "KB", "MB", "GB", "TB"):
@@ -87,6 +92,7 @@ class DownloadRow(Adw.ActionRow):
 
         self.retry_button = Gtk.Button.new_from_icon_name("view-refresh-symbolic")
         self.retry_button.set_tooltip_text("Retry or resume download")
+        set_accessible_label(self.retry_button, "Retry or resume download")
         self.retry_button.add_css_class("flat")
         self.retry_button.set_visible(False)
         self.retry_button.connect("clicked", self._on_retry)
@@ -94,6 +100,7 @@ class DownloadRow(Adw.ActionRow):
 
         self.candidate_action_button = Gtk.Button.new_from_icon_name("media-playback-start-symbolic")
         self.candidate_action_button.set_tooltip_text("Download detected media")
+        set_accessible_label(self.candidate_action_button, "Download detected media")
         self.candidate_action_button.add_css_class("flat")
         self.candidate_action_button.set_visible(False)
         self.candidate_action_button.connect("clicked", self._on_candidate_action)
@@ -101,6 +108,7 @@ class DownloadRow(Adw.ActionRow):
 
         self.dismiss_candidate_button = Gtk.Button.new_from_icon_name("user-trash-symbolic")
         self.dismiss_candidate_button.set_tooltip_text("Dismiss detected media")
+        set_accessible_label(self.dismiss_candidate_button, "Dismiss detected media")
         self.dismiss_candidate_button.add_css_class("flat")
         self.dismiss_candidate_button.set_visible(False)
         self.dismiss_candidate_button.connect("clicked", self._on_dismiss_candidate)
@@ -108,6 +116,7 @@ class DownloadRow(Adw.ActionRow):
 
         self.pause_button = Gtk.Button.new_from_icon_name("media-playback-pause-symbolic")
         self.pause_button.set_tooltip_text("Pause direct download")
+        set_accessible_label(self.pause_button, "Pause direct download")
         self.pause_button.add_css_class("flat")
         self.pause_button.set_visible(isinstance(task, DownloadTask))
         self.pause_button.connect("clicked", self._on_pause)
@@ -115,6 +124,7 @@ class DownloadRow(Adw.ActionRow):
 
         self.cancel_button = Gtk.Button.new_from_icon_name("process-stop-symbolic")
         self.cancel_button.set_tooltip_text("Cancel download")
+        set_accessible_label(self.cancel_button, "Cancel download")
         self.cancel_button.add_css_class("flat")
         self.cancel_button.connect("clicked", self._on_cancel)
         self.add_suffix(self.cancel_button)
@@ -221,18 +231,21 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
         diagnostics_button = Gtk.Button.new_from_icon_name("dialog-information-symbolic")
         diagnostics_button.set_tooltip_text("Settings and diagnostics")
+        set_accessible_label(diagnostics_button, "Settings and diagnostics")
         diagnostics_button.add_css_class("flat")
         diagnostics_button.connect("clicked", self._on_diagnostics_clicked)
         header.pack_end(diagnostics_button)
 
         destination_button = Gtk.Button.new_from_icon_name("folder-open-symbolic")
         destination_button.set_tooltip_text("Choose download folder")
+        set_accessible_label(destination_button, "Choose download folder")
         destination_button.add_css_class("flat")
         destination_button.connect("clicked", self._on_choose_destination)
         header.pack_end(destination_button)
 
         add_button = Gtk.Button.new_from_icon_name("list-add-symbolic")
         add_button.set_tooltip_text("Add a download URL (Ctrl+N)")
+        set_accessible_label(add_button, "Add a download URL")
         add_button.add_css_class("suggested-action")
         add_button.connect("clicked", self._on_add_clicked)
         header.pack_end(add_button)
@@ -419,6 +432,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                     if target.is_file():
                         open_button = Gtk.Button.new_from_icon_name("document-open-symbolic")
                         open_button.set_tooltip_text("Open downloaded file")
+                        set_accessible_label(open_button, "Open downloaded file")
                         open_button.add_css_class("flat")
                         open_button.connect("clicked", lambda _button, path=target: self._open_history_file(path))
                         row.add_suffix(open_button)
