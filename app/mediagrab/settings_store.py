@@ -223,3 +223,18 @@ def import_settings(
     if backup:
         _backup_settings_file(target)
     save_settings(validated, target)
+
+
+def restore_settings_backup(settings_path: str | Path | None = None) -> dict[str, str | int | bool]:
+    """Restore the validated adjacent backup without overwriting that backup."""
+    target = Path(settings_path) if settings_path is not None else default_settings_path()
+    backup_path = target.with_suffix(target.suffix + ".bak")
+    try:
+        raw: Any = json.loads(backup_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError("settings backup is missing or unreadable") from exc
+    if not isinstance(raw, dict):
+        raise ValueError("settings backup must be a JSON object")
+    validated = _validated_settings(raw)
+    save_settings(validated, target)
+    return validated
