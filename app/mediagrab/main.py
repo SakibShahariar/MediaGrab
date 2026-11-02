@@ -28,7 +28,7 @@ from mediagrab.settings_store import load_settings, save_settings
 from mediagrab.diagnostics import configure_logging, get_logger, log_event, read_diagnostics
 from mediagrab.url_utils import is_valid_http_url, redact_url
 from mediagrab.cli import parse_command
-from mediagrab.shortcuts import SHORTCUTS
+from mediagrab.shortcuts import COMMAND_PALETTE_ACTIONS, SHORTCUTS
 
 
 APP_ID = "io.github.SakibShahariar.MediaGrab"
@@ -284,11 +284,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         self.command_palette = Gtk.Popover()
         self.command_palette.set_position(Gtk.PositionType.BOTTOM)
         palette_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        for label, action_name in (
-            ("Add download", "add-download"),
-            ("Search downloads", "focus-search"),
-            ("Open history", "open-history"),
-        ):
+        for label, action_name in COMMAND_PALETTE_ACTIONS:
             command_button = Gtk.Button(label=label)
             command_button.set_halign(Gtk.Align.FILL)
             command_button.connect("clicked", self._run_palette_action, action_name)
