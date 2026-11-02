@@ -135,6 +135,14 @@ def test_cli_supports_edge_and_custom_chromium_profile_root(tmp_path: Path, caps
         f"chrome-extension://{'a' * 32}/"
     ]
     assert "Installed edge registration" in capsys.readouterr().out
+    removed = main([
+        "--browser", "edge",
+        "--config-root", str(profile_root),
+        "--uninstall",
+    ])
+    assert removed == 0
+    assert not manifest_path.exists()
+    assert "Removed edge registration" in capsys.readouterr().out
 
 
 def test_cli_rejects_relative_custom_profile_root(tmp_path: Path, capsys) -> None:
