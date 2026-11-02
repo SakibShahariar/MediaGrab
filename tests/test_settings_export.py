@@ -5,7 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from mediagrab.settings_store import export_settings, import_settings, load_settings, save_settings
+from mediagrab.settings_store import (
+    export_settings, import_settings, load_settings, restore_settings_backup, save_settings,
+)
 
 
 def test_export_import_round_trip_supported_preferences(tmp_path: Path) -> None:
@@ -123,3 +125,43 @@ def test_import_can_skip_settings_backup(tmp_path: Path) -> None:
 
     assert load_settings(current)["download_directory"] == replacement["download_directory"]
     assert not current.with_suffix(".json.bak").exists()
+
+
+def test_restore_settings_backup_restores_previous_preferences(tmp_path: Path) -> None:
+    current = tmp_path / "settings.json"
+    exported = tmp_path / "import.json"
+    original = {
+        "download_directory": str(tmp_path / "Original"),
+        "diagnostics_level": "WARNING",
+        "max_concurrent_downloads": 4,
+        "notifications_enabled": True,
+    }
+    replacement = {
+        "download_directory": str(tmp_path / "Replacement"),
+        "diagnostics_level": "DEBUG",
+        "max_concurrent_downloads": 6,
+        "notifications_enabled": False,
+    }
+    save_settings(original, current)
+    exported.write_text(json.dumps({
+        "format": "mediagrab-settings", "version": 1, "settings": replacement,
+    }), encoding="utf-8")
+    import_settings(exported, current)
+
+    assert restore_settings_backup(current) == original
+    assert load_settings(current) == original
+    assert json.loads(current.with_suffix(".json.bak").read_text(encoding="utf-8")) == original
+
+
+def test_restore_rejects_missing_or_invalid_backup_without_changing_settings(tmp_path: Path) -> None:
+    current = tmp_path / "settings.json"
+    original = {"download_directory": str(tmp_path / "Original")}
+    save_settings(original, current)
+    with pytest.raises(ValueError, match="missing or unreadable"):
+        restore_settings_backup(current)
+    assert load_settings(current)["download_directory"] == original["download_directory"]
+
+    current.with_suffix(".json.bak").write_text('{"download_directory":"relative"}', encoding="utf-8")
+    with pytest.raises(ValueError, match="absolute path"):
+        restore_settings_backup(current)
+    assert load_settings(current)["download_directory"] == original["download_directory"]
