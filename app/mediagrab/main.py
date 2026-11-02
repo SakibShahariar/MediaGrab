@@ -74,6 +74,7 @@ class DownloadRow(Adw.ActionRow):
         self.subtitle_url = subtitle_url
         self.expected_checksum = expected_checksum
         self.task = task
+        self.output_path: Path | None = None
         self.is_active = False
         self._source_url = redact_url(url)
         self._search_text = f"{title} {url}".casefold()
@@ -334,6 +335,50 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             self._on_history_clicked(None)
         elif action_name == "open-diagnostics":
             self._on_diagnostics_clicked(None)
+        elif action_name in {"toggle-focused-download", "retry-focused-download", "cancel-focused-download", "open-focused-file"}:
+            self._run_focused_download_action(action_name)
+
+    def _focused_download_row(self) -> DownloadRow | None:
+        """Return the queue row containing the current keyboard focus."""
+        widget = self.get_focus()
+        while widget is not None:
+            if isinstance(widget, DownloadRow):
+                return widget
+            widget = widget.get_parent()
+        return None
+
+    def _run_focused_download_action(self, action_name: str) -> None:
+        row = self._focused_download_row()
+        if row is None:
+            self.toast_overlay.add_toast(Adw.Toast.new("Focus a download row or one of its controls first."))
+            return
+        state = row.status_label.get_text()
+        if action_name == "toggle-focused-download":
+            if row in self._pending_downloads or row in self._active_downloads:
+                self.pause_download(row)
+            elif state in {"Paused", "Interrupted"}:
+                self.retry_download(row)
+            else:
+                self.toast_overlay.add_toast(Adw.Toast.new("This download cannot be paused or resumed in its current state."))
+        elif action_name == "retry-focused-download":
+            if state in {"Failed", "Cancelled", "Interrupted", "Paused"}:
+                self.retry_download(row)
+            else:
+                self.toast_overlay.add_toast(Adw.Toast.new("Only a failed, cancelled, interrupted, or paused download can be retried."))
+        elif action_name == "cancel-focused-download":
+            if row in self._pending_downloads or row in self._active_downloads:
+                self.cancel_download(row)
+            else:
+                self.toast_overlay.add_toast(Adw.Toast.new("This download is not queued or active."))
+        elif action_name == "open-focused-file":
+            if state != "Completed" or row.output_path is None or not row.output_path.is_file():
+                self.toast_overlay.add_toast(Adw.Toast.new("The focused row has no completed file to open."))
+                return
+            try:
+                Gio.AppInfo.launch_default_for_uri(row.output_path.as_uri(), None)
+            except GLib.Error as exc:
+                _LOG.warning("Could not open completed download: %s", exc)
+                self.toast_overlay.add_toast(Adw.Toast.new("Could not open the completed file."))
 
     def _footer_text(self) -> str:
         return (
@@ -1182,6 +1227,8 @@ class MediaGrabWindow(Adw.ApplicationWindow):
     def _download_finished(self, row: DownloadRow, state: str, detail: str) -> bool:
         row.is_active = False
         self._active_downloads.discard(row)
+        if state == "Completed":
+            row.output_path = Path(detail)
         row.finish(state, detail if state == "Failed" else None)
         if state in {"Completed", "Failed", "Cancelled", "Paused"}:
             if state == "Completed":
@@ -1276,6 +1323,8 @@ class MediaGrabApplication(Adw.Application):
             window._on_history_clicked(None)
         elif action_name == "open-diagnostics":
             window._on_diagnostics_clicked(None)
+        elif action_name in {"toggle-focused-download", "retry-focused-download", "cancel-focused-download", "open-focused-file"}:
+            window._run_focused_download_action(action_name)
         elif action_name == "open-command-palette":
             window.command_palette.popup()
 
