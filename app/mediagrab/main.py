@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sys
 import threading
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -21,6 +22,7 @@ from mediagrab.capture import MediaKind, HLSVariant
 from mediagrab.task_factory import create_download_task
 from mediagrab.queue_store import load_queue, save_queue
 from mediagrab.history_store import append_history, make_history_entry, load_history, clear_history
+from mediagrab.history_filter import matches_history_entry
 from mediagrab.duplicate_detection import has_pending_duplicate
 from mediagrab.settings_store import load_settings, save_settings
 from mediagrab.diagnostics import configure_logging, get_logger, log_event, read_diagnostics
@@ -329,6 +331,32 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         toolbar.append(clear_button)
         content.append(toolbar)
 
+        filter_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        file_type_filter = Gtk.DropDown.new_from_strings([
+            "All files", "Video", "Audio", "HLS/DASH", "Subtitles", "Other"
+        ])
+        file_type_filter.set_hexpand(True)
+        file_type_filter.set_tooltip_text("Filter by file type")
+        filter_bar.append(file_type_filter)
+        date_filter = Gtk.DropDown.new_from_strings([
+            "Any time", "Last 24 hours", "Last 7 days", "Last 30 days"
+        ])
+        date_filter.set_hexpand(True)
+        date_filter.set_tooltip_text("Filter by date")
+        filter_bar.append(date_filter)
+        size_filter = Gtk.DropDown.new_from_strings([
+            "Any size", "Unknown size", "Under 100 MB", "100 MB–1 GB", "Over 1 GB"
+        ])
+        size_filter.set_hexpand(True)
+        size_filter.set_tooltip_text("Filter by file size")
+        filter_bar.append(size_filter)
+        content.append(filter_bar)
+
+        domain_filter = Gtk.Entry()
+        domain_filter.set_placeholder_text("Filter by source domain (e.g. example.com)")
+        domain_filter.set_input_purpose(Gtk.InputPurpose.FREE_FORM)
+        content.append(domain_filter)
+
         list_box = Gtk.ListBox()
         list_box.set_selection_mode(Gtk.SelectionMode.NONE)
         list_box.add_css_class("boxed-list")
@@ -336,7 +364,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         scroller.set_vexpand(True)
         scroller.set_child(list_box)
         content.append(scroller)
-        rows: list[tuple[Adw.ActionRow, str, str]] = []
+        rows: list[tuple[Adw.ActionRow, dict[str, object]]] = []
 
         def render_history() -> None:
             child = list_box.get_first_child()
@@ -356,8 +384,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                     f'{item["source_url"]} · {item["destination"]}'
                 )
                 row = Adw.ActionRow(title=item["filename"], subtitle=subtitle)
-                search_text = " ".join(str(value) for value in item.values()).casefold()
-                rows.append((row, search_text, item["outcome"]))
+                rows.append((row, item))
                 if item["outcome"] == "Completed":
                     target = Path(item["destination"]) / item["filename"]
                     if target.is_file():
@@ -370,13 +397,29 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             apply_filter()
 
         def apply_filter(*_args: object) -> None:
-            query = search.get_text().strip().casefold()
-            selected_status = status_filter.get_selected()
+            date_options = (None, 1, 7, 30)
+            selected_date = date_filter.get_selected()
+            days = date_options[selected_date] if selected_date < len(date_options) else None
+            cutoff = datetime.now().astimezone() - timedelta(days=days) if days else None
             statuses = ("All statuses", "Completed", "Failed", "Cancelled", "Paused")
-            for row, searchable, outcome in rows:
-                matches_search = not query or query in searchable
-                matches_status = selected_status == 0 or outcome == statuses[selected_status]
-                row.set_visible(matches_search and matches_status)
+            status_index = status_filter.get_selected()
+            status_value = statuses[status_index] if status_index < len(statuses) else "All statuses"
+            file_types = ("All files", "Video", "Audio", "HLS/DASH", "Subtitles", "Other")
+            type_index = file_type_filter.get_selected()
+            type_value = file_types[type_index] if type_index < len(file_types) else "All files"
+            size_options = ("Any size", "Unknown size", "Under 100 MB", "100 MB–1 GB", "Over 1 GB")
+            size_index = size_filter.get_selected()
+            size_value = size_options[size_index] if size_index < len(size_options) else "Any size"
+            for row, item in rows:
+                row.set_visible(matches_history_entry(
+                    item,
+                    query=search.get_text(),
+                    status=status_value,
+                    file_type=type_value,
+                    domain=domain_filter.get_text(),
+                    since=cutoff,
+                    size_filter=size_value,
+                ))
 
         def confirm_clear(_button: Gtk.Button) -> None:
             confirmation = Adw.AlertDialog(
@@ -405,6 +448,10 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
         search.connect("search-changed", apply_filter)
         status_filter.connect("notify::selected", apply_filter)
+        file_type_filter.connect("notify::selected", apply_filter)
+        date_filter.connect("notify::selected", apply_filter)
+        size_filter.connect("notify::selected", apply_filter)
+        domain_filter.connect("changed", apply_filter)
         clear_button.connect("clicked", confirm_clear)
         render_history()
         history_window.present()
