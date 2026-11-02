@@ -110,3 +110,84 @@ def save_settings(settings: dict[str, str | int], path: str | Path | None = None
         except OSError:
             pass
         raise
+
+
+SETTINGS_EXPORT_FORMAT = "mediagrab-settings"
+SETTINGS_EXPORT_VERSION = 1
+
+
+def _validated_settings(settings: dict[str, Any]) -> dict[str, str | int | bool]:
+    """Validate and normalize the settings fields supported by this version."""
+    destination = settings.get("download_directory")
+    if not isinstance(destination, str) or not destination.strip():
+        raise ValueError("download_directory must be a non-empty path")
+    directory = Path(destination).expanduser()
+    if not directory.is_absolute():
+        raise ValueError("download_directory must be an absolute path")
+
+    diagnostics_level = settings.get("diagnostics_level", "INFO")
+    if not isinstance(diagnostics_level, str) or diagnostics_level.upper() not in {"ERROR", "WARNING", "INFO", "DEBUG"}:
+        raise ValueError("diagnostics_level must be ERROR, WARNING, INFO, or DEBUG")
+    max_concurrent = settings.get("max_concurrent_downloads", DEFAULT_MAX_CONCURRENT_DOWNLOADS)
+    if (
+        isinstance(max_concurrent, bool)
+        or not isinstance(max_concurrent, int)
+        or not MIN_MAX_CONCURRENT_DOWNLOADS <= max_concurrent <= MAX_MAX_CONCURRENT_DOWNLOADS
+    ):
+        raise ValueError(
+            "max_concurrent_downloads must be an integer between "
+            f"{MIN_MAX_CONCURRENT_DOWNLOADS} and {MAX_MAX_CONCURRENT_DOWNLOADS}"
+        )
+    notifications_enabled = settings.get("notifications_enabled", True)
+    if not isinstance(notifications_enabled, bool):
+        raise ValueError("notifications_enabled must be a boolean")
+    return {
+        "download_directory": str(directory),
+        "diagnostics_level": diagnostics_level.upper(),
+        "max_concurrent_downloads": max_concurrent,
+        "notifications_enabled": notifications_enabled,
+    }
+
+
+def export_settings(destination: str | Path, settings_path: str | Path | None = None) -> None:
+    """Export supported preferences without credentials or other secret material."""
+    settings = load_settings(settings_path)
+    payload = json.dumps({
+        "format": SETTINGS_EXPORT_FORMAT,
+        "version": SETTINGS_EXPORT_VERSION,
+        "settings": settings,
+    }, indent=2) + "\\n"
+    target = Path(destination)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary_name = tempfile.mkstemp(
+        prefix=f".{target.name}.", suffix=".tmp", dir=target.parent
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as output:
+            output.write(payload)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, target)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
+def import_settings(source: str | Path, settings_path: str | Path | None = None) -> None:
+    """Validate a versioned settings export completely before replacing preferences."""
+    try:
+        payload = json.loads(Path(source).read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError("settings export is unreadable or invalid JSON") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("settings export must be a JSON object")
+    if payload.get("format") != SETTINGS_EXPORT_FORMAT:
+        raise ValueError("unrecognized settings export format")
+    if payload.get("version") != SETTINGS_EXPORT_VERSION:
+        raise ValueError("unsupported settings export version")
+    raw_settings = payload.get("settings")
+    if not isinstance(raw_settings, dict):
+        raise ValueError("settings export must contain a settings object")
+    validated = _validated_settings(raw_settings)
+    save_settings(validated, settings_path)
