@@ -1,5 +1,6 @@
 """Regression checks for accessible names on icon-only GTK actions."""
 
+import ast
 from pathlib import Path
 
 
@@ -43,3 +44,20 @@ def test_form_and_filter_controls_expose_accessible_names() -> None:
         'set_accessible_label(subtitle_dropdown, "Subtitle track")',
     ):
         assert expression in source
+
+
+def test_every_icon_only_button_has_an_explicit_accessible_name() -> None:
+    source = (ROOT / "app" / "mediagrab" / "main.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    icon_buttons = set()
+    labelled_buttons = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+            if ast.unparse(node.value.func) == "Gtk.Button.new_from_icon_name":
+                for target in node.targets:
+                    if isinstance(target, (ast.Name, ast.Attribute)):
+                        icon_buttons.add(ast.unparse(target))
+        if isinstance(node, ast.Call) and ast.unparse(node.func) == "set_accessible_label" and node.args:
+            labelled_buttons.add(ast.unparse(node.args[0]))
+    assert icon_buttons
+    assert icon_buttons <= labelled_buttons
