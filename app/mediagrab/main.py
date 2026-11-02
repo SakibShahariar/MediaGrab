@@ -24,7 +24,7 @@ from mediagrab.queue_store import load_queue, save_queue
 from mediagrab.history_store import append_history, make_history_entry, load_history, clear_history
 from mediagrab.history_filter import matches_history_entry, load_history_filter_preferences, save_history_filter_preferences
 from mediagrab.duplicate_detection import has_pending_duplicate
-from mediagrab.settings_store import load_settings, save_settings
+from mediagrab.settings_store import export_settings, import_settings, load_settings, save_settings
 from mediagrab.diagnostics import configure_logging, get_logger, log_event, read_diagnostics
 from mediagrab.url_utils import is_valid_http_url, redact_url
 from mediagrab.cli import parse_command
@@ -553,6 +553,14 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         copy_button.add_css_class("flat")
         copy_button.connect("clicked", self._on_copy_diagnostics)
         content.append(copy_button)
+        settings_actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        export_button = Gtk.Button(label="Export settings…")
+        export_button.connect("clicked", self._on_export_settings)
+        import_button = Gtk.Button(label="Import settings…")
+        import_button.connect("clicked", self._on_import_settings)
+        settings_actions.append(export_button)
+        settings_actions.append(import_button)
+        content.append(settings_actions)
 
         dialog = Adw.AlertDialog(
             heading="Settings and diagnostics",
@@ -590,6 +598,54 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             self.toast_overlay.add_toast(Adw.Toast.new(f"Diagnostics verbosity set to {diagnostics_level}."))
         dialog.connect("response", on_response)
         dialog.present(self)
+
+    def _choose_settings_file(self, *, save: bool) -> None:
+        chooser = Gtk.FileChooserNative.new(
+            "Export MediaGrab settings" if save else "Import MediaGrab settings",
+            self,
+            Gtk.FileChooserAction.SAVE if save else Gtk.FileChooserAction.OPEN,
+            "Export" if save else "Import",
+            "Cancel",
+        )
+        if save:
+            chooser.set_current_name("mediagrab-settings.json")
+
+        def on_response(dialog: Gtk.FileChooserNative, response: int) -> None:
+            if response != Gtk.ResponseType.ACCEPT:
+                return
+            selected = dialog.get_file()
+            path = selected.get_path() if selected is not None else None
+            if not path:
+                self.toast_overlay.add_toast(Adw.Toast.new("Choose a local settings file."))
+                return
+            try:
+                if save:
+                    export_settings(path)
+                    message = "Settings exported."
+                else:
+                    import_settings(path)
+                    settings = load_settings()
+                    self.download_directory = Path(settings["download_directory"])
+                    self.max_concurrent_downloads = int(settings["max_concurrent_downloads"])
+                    self.notifications_enabled = bool(settings["notifications_enabled"])
+                    configure_logging(settings["diagnostics_level"])
+                    self.destination_label.set_text(f"Files are saved to {self.download_directory}")
+                    self.footer_label.set_text(self._footer_text())
+                    self._start_next_downloads()
+                    message = "Settings imported."
+            except (OSError, ValueError) as exc:
+                self.toast_overlay.add_toast(Adw.Toast.new(f"Could not {'export' if save else 'import'} settings: {exc}"))
+                return
+            self.toast_overlay.add_toast(Adw.Toast.new(message))
+
+        chooser.connect("response", on_response)
+        chooser.show()
+
+    def _on_export_settings(self, _button: Gtk.Button) -> None:
+        self._choose_settings_file(save=True)
+
+    def _on_import_settings(self, _button: Gtk.Button) -> None:
+        self._choose_settings_file(save=False)
 
     def _on_copy_diagnostics(self, _button: Gtk.Button) -> None:
         try:
