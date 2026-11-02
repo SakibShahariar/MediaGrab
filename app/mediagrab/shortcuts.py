@@ -5,10 +5,12 @@ SHORTCUTS = {
     "focus-search": "<Control>f",
     "open-history": "<Control><Shift>h",
     "open-command-palette": "<Control>k",
+    "open-diagnostics": "<Control><Shift>d",
 }
 
 COMMAND_PALETTE_ACTIONS = (
     ("Add download", "add-download"),
     ("Search downloads", "focus-search"),
     ("Open history", "open-history"),
+    ("Open diagnostics", "open-diagnostics"),
 )
