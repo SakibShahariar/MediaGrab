@@ -28,6 +28,7 @@ from mediagrab.settings_store import load_settings, save_settings
 from mediagrab.diagnostics import configure_logging, get_logger, log_event, read_diagnostics
 from mediagrab.url_utils import is_valid_http_url, redact_url
 from mediagrab.cli import parse_command
+from mediagrab.shortcuts import SHORTCUTS
 
 
 APP_ID = "io.github.SakibShahariar.MediaGrab"
@@ -214,6 +215,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         header.set_title_widget(Adw.WindowTitle(title="MediaGrab", subtitle="Downloads"))
 
         history_button = Gtk.Button(label="History")
+        history_button.set_tooltip_text("Open download history (Ctrl+Shift+H)")
         history_button.connect("clicked", self._on_history_clicked)
         header.pack_start(history_button)
 
@@ -230,7 +232,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         header.pack_end(destination_button)
 
         add_button = Gtk.Button.new_from_icon_name("list-add-symbolic")
-        add_button.set_tooltip_text("Add a download URL")
+        add_button.set_tooltip_text("Add a download URL (Ctrl+N)")
         add_button.add_css_class("suggested-action")
         add_button.connect("clicked", self._on_add_clicked)
         header.pack_end(add_button)
@@ -275,7 +277,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
         self.search_entry = Gtk.SearchEntry()
         self.search_entry.set_placeholder_text("Search downloads")
-        self.search_entry.set_tooltip_text("Search by filename or source URL")
+        self.search_entry.set_tooltip_text("Search by filename or source URL (Ctrl+F)")
         self.search_entry.connect("search-changed", self._on_search_changed)
         content.append(self.search_entry)
 
@@ -304,7 +306,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             "HLS/DASH streams use FFmpeg · browser detections wait for your review"
         )
 
-    def _on_history_clicked(self, _button: Gtk.Button) -> None:
+    def _on_history_clicked(self, _button: Gtk.Button | None) -> None:
         history_window = Adw.Window(
             title="Download history", transient_for=self, modal=True
         )
@@ -699,7 +701,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         page.set_description("Add a direct file URL or an HLS/DASH manifest URL to start a download.")
         return page
 
-    def _on_add_clicked(self, _button: Gtk.Button) -> None:
+    def _on_add_clicked(self, _button: Gtk.Button | None) -> None:
         dialog = Adw.AlertDialog(
             heading="Add a download",
             body=f"Enter a direct file URL or an HLS/DASH manifest URL. The file will be saved in {self.download_directory}. HLS/DASH downloads require FFmpeg.",
@@ -1158,6 +1160,28 @@ class MediaGrabApplication(Adw.Application):
         open_action = Gio.SimpleAction.new("open-file", GLib.VariantType.new("s"))
         open_action.connect("activate", self._on_open_file)
         self.add_action(open_action)
+        for action_name, accelerator in SHORTCUTS.items():
+            action = Gio.SimpleAction.new(action_name, None)
+            action.connect("activate", self._on_shortcut, action_name)
+            self.add_action(action)
+            self.set_accels_for_action(f"app.{action_name}", [accelerator])
+
+    def _on_shortcut(
+        self, _action: Gio.SimpleAction, _parameter: GLib.Variant | None,
+        action_name: str,
+    ) -> None:
+        window = self.get_active_window()
+        if not isinstance(window, MediaGrabWindow):
+            self._on_activate(self)
+            window = self.get_active_window()
+        if not isinstance(window, MediaGrabWindow):
+            return
+        if action_name == "add-download":
+            window._on_add_clicked(None)
+        elif action_name == "focus-search":
+            window.search_entry.grab_focus()
+        elif action_name == "open-history":
+            window._on_history_clicked(None)
 
     def _on_open_file(self, _action: Gio.SimpleAction, parameter: GLib.Variant | None) -> None:
         if parameter is None:
