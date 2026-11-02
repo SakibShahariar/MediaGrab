@@ -403,6 +403,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         preferences = load_history_filter_preferences()
         toolbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         search = Gtk.SearchEntry()
+        set_accessible_label(search, "Search download history")
         search.set_hexpand(True)
         search.set_placeholder_text("Search history by filename, URL, or destination")
         search.set_text(preferences["query"])
@@ -410,6 +411,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         status_filter = Gtk.DropDown.new_from_strings([
             "All statuses", "Completed", "Failed", "Cancelled", "Paused"
         ])
+        set_accessible_label(status_filter, "Filter history by outcome")
         status_filter.set_tooltip_text("Filter history by outcome")
         status_filter.set_selected(("All statuses", "Completed", "Failed", "Cancelled", "Paused").index(preferences["status"]))
         toolbar.append(status_filter)
@@ -422,6 +424,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         file_type_filter = Gtk.DropDown.new_from_strings([
             "All files", "Video", "Audio", "HLS/DASH", "Subtitles", "Other"
         ])
+        set_accessible_label(file_type_filter, "Filter history by file type")
         file_type_filter.set_hexpand(True)
         file_type_filter.set_tooltip_text("Filter by file type")
         file_type_filter.set_selected(("All files", "Video", "Audio", "HLS/DASH", "Subtitles", "Other").index(preferences["file_type"]))
@@ -429,6 +432,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         date_filter = Gtk.DropDown.new_from_strings([
             "Any time", "Last 24 hours", "Last 7 days", "Last 30 days"
         ])
+        set_accessible_label(date_filter, "Filter history by date")
         date_filter.set_hexpand(True)
         date_filter.set_tooltip_text("Filter by date")
         date_filter.set_selected(("Any time", "Last 24 hours", "Last 7 days", "Last 30 days").index(preferences["date_range"]))
@@ -436,6 +440,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         size_filter = Gtk.DropDown.new_from_strings([
             "Any size", "Unknown size", "Under 100 MB", "100 MB–1 GB", "Over 1 GB"
         ])
+        set_accessible_label(size_filter, "Filter history by file size")
         size_filter.set_hexpand(True)
         size_filter.set_tooltip_text("Filter by file size")
         size_filter.set_selected(("Any size", "Unknown size", "Under 100 MB", "100 MB–1 GB", "Over 1 GB").index(preferences["size_filter"]))
@@ -443,6 +448,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         content.append(filter_bar)
 
         domain_filter = Gtk.Entry()
+        set_accessible_label(domain_filter, "Filter history by source domain")
         domain_filter.set_placeholder_text("Filter by source domain (e.g. example.com)")
         domain_filter.set_input_purpose(Gtk.InputPurpose.FREE_FORM)
         domain_filter.set_text(preferences["domain"])
@@ -585,12 +591,14 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         content.set_margin_end(6)
         content.append(Gtk.Label(label="Logging verbosity", xalign=0))
         level = Gtk.DropDown(model=Gtk.StringList.new(list(_DIAGNOSTIC_LEVELS)))
+        set_accessible_label(level, "Logging verbosity")
         level.set_selected(_DIAGNOSTIC_LEVELS.index(settings["diagnostics_level"]))
         content.append(level)
         concurrency_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         concurrency_label = Gtk.Label(label="Maximum simultaneous downloads", xalign=0)
         concurrency_label.set_hexpand(True)
         concurrency = Gtk.SpinButton.new_with_range(1, 10, 1)
+        set_accessible_label(concurrency, "Maximum simultaneous downloads")
         concurrency.set_value(int(settings["max_concurrent_downloads"]))
         concurrency_row.append(concurrency_label)
         concurrency_row.append(concurrency)
@@ -846,8 +854,10 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             body=f"Enter a direct file URL or an HLS/DASH manifest URL. The file will be saved in {self.download_directory}. HLS/DASH downloads require FFmpeg.",
         )
         entry = Gtk.Entry()
+        set_accessible_label(entry, "Download URL")
         entry.set_placeholder_text("https://example.com/file.zip")
         checksum_entry = Gtk.Entry()
+        set_accessible_label(checksum_entry, "Optional checksum")
         checksum_entry.set_placeholder_text("Optional checksum: sha256:… / sha1:… / md5:…")
         entry.set_hexpand(True)
         paste_button = Gtk.Button(label="Paste")
@@ -958,6 +968,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             getattr(content, "set_margin_" + side)(6)
         if len(choices) > 1:
             dropdown = Gtk.DropDown(model=Gtk.StringList.new([label for label, _url in choices]))
+            set_accessible_label(dropdown, "Download quality")
             dropdown.set_selected(0)
             content.append(Gtk.Label(label="Download choice", xalign=0))
             content.append(dropdown)
@@ -1018,11 +1029,13 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             content.append(Gtk.Label(label="Alternate audio (optional)", xalign=0))
             audio_labels = ["Use variant/default audio"] + [(item.name or item.language or "Audio track") + ((" · " + item.language) if item.language else "") + ((" · group " + item.group_id) if item.group_id else "") for item in audio_choices]
             audio_dropdown = Gtk.DropDown(model=Gtk.StringList.new(audio_labels))
+            set_accessible_label(audio_dropdown, "Alternate audio track")
             content.append(audio_dropdown)
         if subtitle_choices:
             content.append(Gtk.Label(label="Subtitles (optional)", xalign=0))
             subtitle_labels = ["No extra subtitles"] + [(item.name or item.language or "Subtitle track") + ((" · " + item.language) if item.language else "") + ((" · group " + item.group_id) if item.group_id else "") for item in subtitle_choices]
             subtitle_dropdown = Gtk.DropDown(model=Gtk.StringList.new(subtitle_labels))
+            set_accessible_label(subtitle_dropdown, "Subtitle track")
             content.append(subtitle_dropdown)
         dialog.connect("response", response_cb)
         dialog.present(self)
