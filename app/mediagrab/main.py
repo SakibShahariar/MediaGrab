@@ -281,6 +281,21 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         self.search_entry.connect("search-changed", self._on_search_changed)
         content.append(self.search_entry)
 
+        self.command_palette = Gtk.Popover()
+        self.command_palette.set_position(Gtk.PositionType.BOTTOM)
+        palette_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        for label, action_name in (
+            ("Add download", "add-download"),
+            ("Search downloads", "focus-search"),
+            ("Open history", "open-history"),
+        ):
+            command_button = Gtk.Button(label=label)
+            command_button.set_halign(Gtk.Align.FILL)
+            command_button.connect("clicked", self._run_palette_action, action_name)
+            palette_box.append(command_button)
+        self.command_palette.set_child(palette_box)
+        self.command_palette.set_parent(self.search_entry)
+
         self.list_box = Gtk.ListBox()
         self.list_box.set_selection_mode(Gtk.SelectionMode.NONE)
         self.list_box.add_css_class("boxed-list")
@@ -299,6 +314,15 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         self.footer_label.set_xalign(0)
         content.append(self.footer_label)
         self._restore_queue()
+
+    def _run_palette_action(self, _button: Gtk.Button, action_name: str) -> None:
+        self.command_palette.popdown()
+        if action_name == "add-download":
+            self._on_add_clicked(None)
+        elif action_name == "focus-search":
+            self.search_entry.grab_focus()
+        elif action_name == "open-history":
+            self._on_history_clicked(None)
 
     def _footer_text(self) -> str:
         return (
@@ -1182,6 +1206,8 @@ class MediaGrabApplication(Adw.Application):
             window.search_entry.grab_focus()
         elif action_name == "open-history":
             window._on_history_clicked(None)
+        elif action_name == "open-command-palette":
+            window.command_palette.popup()
 
     def _on_open_file(self, _action: Gio.SimpleAction, parameter: GLib.Variant | None) -> None:
         if parameter is None:
