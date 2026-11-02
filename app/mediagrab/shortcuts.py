@@ -1,0 +1,7 @@
+"""Discoverable keyboard shortcuts for the main MediaGrab window."""
+
+SHORTCUTS = {
+    "add-download": "<Control>n",
+    "focus-search": "<Control>f",
+    "open-history": "<Control><Shift>h",
+}
