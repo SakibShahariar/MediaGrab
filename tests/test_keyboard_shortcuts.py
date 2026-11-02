@@ -1,6 +1,6 @@
 """Tests for stable, non-conflicting core keyboard shortcut bindings."""
 
-from mediagrab.shortcuts import SHORTCUTS
+from mediagrab.shortcuts import COMMAND_PALETTE_ACTIONS, SHORTCUTS
 
 
 def test_core_shortcuts_cover_add_search_and_history() -> None:
@@ -14,3 +14,11 @@ def test_core_shortcuts_cover_add_search_and_history() -> None:
 
 def test_shortcut_accelerators_are_unique() -> None:
     assert len(SHORTCUTS.values()) == len(set(SHORTCUTS.values()))
+
+
+def test_command_palette_exposes_core_actions() -> None:
+    assert COMMAND_PALETTE_ACTIONS == (
+        ("Add download", "add-download"),
+        ("Search downloads", "focus-search"),
+        ("Open history", "open-history"),
+    )
