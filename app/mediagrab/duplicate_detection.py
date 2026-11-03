@@ -10,6 +10,8 @@ import stat
 import tempfile
 from typing import Any
 
+from mediagrab.checksum import verify_file
+
 
 _PENDING_STATUSES = frozenset({
     "Queued",
@@ -32,6 +34,8 @@ def has_pending_duplicate(url: str, entries: Iterable[tuple[str, str]]) -> bool:
 def find_completed_file_duplicates(
     filename: str,
     history: Iterable[dict[str, Any]],
+    *,
+    expected_checksum: str | None = None,
 ) -> list[dict[str, Any]]:
     """Find completed history records whose saved file still matches its record.
 
@@ -58,9 +62,14 @@ def find_completed_file_duplicates(
             continue
         path = Path(destination) / filename
         try:
-            if path.is_file() and path.stat().st_size == recorded_size:
-                matches.append(entry)
-        except OSError:
+            if not path.is_file() or path.stat().st_size != recorded_size:
+                continue
+            if expected_checksum is not None:
+                # A supplied checksum can rule out a same-name/same-size
+                # candidate or positively confirm the saved file's contents.
+                verify_file(path, expected_checksum)
+            matches.append(entry)
+        except (OSError, ValueError):
             continue
     return matches
 

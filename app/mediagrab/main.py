@@ -1185,7 +1185,9 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             filename = f"{Path(original_name).stem or 'media'}.mkv"
         else:
             filename = original_name
-        duplicates = find_completed_file_duplicates(filename, load_history())
+        duplicates = find_completed_file_duplicates(
+            filename, load_history(), expected_checksum=expected_checksum
+        )
         if duplicates:
             remembered_action = load_remembered_duplicate_action()
             if remembered_action == "skip":

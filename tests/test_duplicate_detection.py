@@ -1,5 +1,6 @@
 """Tests for pending and completed-file duplicate detection."""
 
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -173,3 +174,25 @@ def test_preserves_original_and_download_if_atomic_replace_fails(tmp_path: Path,
     assert original.read_bytes() == b"original"
     assert downloaded.read_bytes() == b"replacement"
     assert not list(tmp_path.glob("*.replace"))
+
+
+
+def test_optional_checksum_confirms_or_rules_out_same_size_candidate(tmp_path: Path) -> None:
+    target = tmp_path / "video.mkv"
+    contents = b"saved media"
+    target.write_bytes(contents)
+    entry = {
+        "filename": "video.mkv",
+        "destination": str(tmp_path),
+        "size": len(contents),
+        "outcome": "Completed",
+    }
+    matching = "sha256:" + hashlib.sha256(contents).hexdigest()
+    different_same_size = "sha256:" + hashlib.sha256(b"other media").hexdigest()
+
+    assert find_completed_file_duplicates(
+        "video.mkv", [entry], expected_checksum=matching
+    ) == [entry]
+    assert find_completed_file_duplicates(
+        "video.mkv", [entry], expected_checksum=different_same_size
+    ) == []
