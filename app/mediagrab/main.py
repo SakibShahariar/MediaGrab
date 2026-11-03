@@ -23,7 +23,16 @@ from mediagrab.task_factory import create_download_task
 from mediagrab.queue_store import load_queue, save_queue
 from mediagrab.history_store import append_history, make_history_entry, load_history, clear_history
 from mediagrab.history_filter import matches_history_entry, load_history_filter_preferences, save_history_filter_preferences
-from mediagrab.duplicate_detection import has_pending_duplicate, find_completed_file_duplicates
+from mediagrab.duplicate_detection import (
+    has_pending_duplicate,
+    find_completed_file_duplicates,
+    capture_replace_signature,
+    replace_completed_download,
+)
+from mediagrab.duplicate_preferences import (
+    load_remembered_duplicate_action,
+    save_remembered_duplicate_action,
+)
 from mediagrab.media_stream import MediaStreamTask
 from mediagrab.settings_store import export_settings, import_settings, load_settings, restore_settings_backup, save_settings
 from mediagrab.diagnostics import configure_logging, get_logger, log_event, read_diagnostics
@@ -65,7 +74,7 @@ def format_size(value: int) -> str:
 class DownloadRow(Adw.ActionRow):
     """One queue item, including progress, cancellation, and retry controls."""
 
-    def __init__(self, window: "MediaGrabWindow", url: str, task: DownloadTask, *, audio_url: str | None = None, subtitle_url: str | None = None, expected_checksum: str | None = None) -> None:
+    def __init__(self, window: "MediaGrabWindow", url: str, task: DownloadTask, *, audio_url: str | None = None, subtitle_url: str | None = None, expected_checksum: str | None = None, replacement_target: str | None = None, replacement_signature: dict[str, int] | None = None) -> None:
         parsed = urlparse(url)
         title = parsed.path.rsplit("/", 1)[-1] or parsed.netloc or url
         super().__init__(title=title, subtitle=redact_url(url))
@@ -74,6 +83,8 @@ class DownloadRow(Adw.ActionRow):
         self.audio_url = audio_url
         self.subtitle_url = subtitle_url
         self.expected_checksum = expected_checksum
+        self.replacement_target = replacement_target
+        self.replacement_signature = replacement_signature
         self.task = task
         self.output_path: Path | None = None
         self.is_active = False
@@ -797,7 +808,14 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 task = create_download_task(url, self.download_directory, audio_url=entry.get("audio_url"), subtitle_url=entry.get("subtitle_url"), expected_checksum=entry.get("expected_checksum"))
             except ValueError:
                 continue
-            row = DownloadRow(self, url, task, audio_url=entry.get("audio_url"), subtitle_url=entry.get("subtitle_url"), expected_checksum=entry.get("expected_checksum"))
+            row = DownloadRow(
+                self, url, task,
+                audio_url=entry.get("audio_url"),
+                subtitle_url=entry.get("subtitle_url"),
+                expected_checksum=entry.get("expected_checksum"),
+                replacement_target=entry.get("replacement_target"),
+                replacement_signature=entry.get("replacement_signature"),
+            )
             is_candidate = entry.get("candidate") is True
             row.finish("Detected" if is_candidate else "Interrupted")
             if not is_candidate and entry.get("interrupted_recorded") is not True:
@@ -868,6 +886,9 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 entry["candidate"] = True
             if state == "Interrupted":
                 entry["interrupted_recorded"] = True
+            if row.replacement_target and row.replacement_signature:
+                entry["replacement_target"] = row.replacement_target
+                entry["replacement_signature"] = row.replacement_signature
             entries.append(entry)
         try:
             save_queue(entries)
@@ -1153,6 +1174,18 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             filename = original_name
         duplicates = find_completed_file_duplicates(filename, load_history())
         if duplicates:
+            remembered_action = load_remembered_duplicate_action()
+            if remembered_action == "skip":
+                self.toast_overlay.add_toast(Adw.Toast.new("Duplicate download skipped (remembered choice)."))
+                return True
+            if remembered_action == "keep-both":
+                self._queue_new_download(
+                    url, task,
+                    audio_url=audio_url,
+                    subtitle_url=subtitle_url,
+                    expected_checksum=expected_checksum,
+                )
+                return True
             self._show_completed_duplicate_dialog(
                 url, task, duplicates,
                 audio_url=audio_url,
@@ -1190,6 +1223,10 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             wrap=True,
             xalign=0,
         ))
+        remember_choice = Gtk.CheckButton(
+            label="Remember Keep both or Skip for future duplicate prompts"
+        )
+        content.append(remember_choice)
         for entry in duplicates[:4]:
             content.append(Gtk.Label(
                 label=str(Path(str(entry["destination"])) / str(entry["filename"])),
@@ -1205,7 +1242,20 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             body="Do you want to keep another copy or skip this download?",
         )
         dialog.set_extra_child(content)
+        candidate_paths = {
+            str(Path(str(entry["destination"])) / str(entry["filename"]))
+            for entry in duplicates
+        }
+        replacement_target = next(iter(candidate_paths)) if len(candidate_paths) == 1 else None
+        replacement_signature = (
+            capture_replace_signature(replacement_target)
+            if replacement_target is not None else None
+        )
+
         dialog.add_response("cancel", "Cancel")
+        if replacement_target is not None and replacement_signature is not None:
+            dialog.add_response("replace", "Replace existing")
+            dialog.set_response_appearance("replace", Adw.ResponseAppearance.DESTRUCTIVE)
         dialog.add_response("skip", "Skip download")
         dialog.add_response("download", "Keep both (new filename)")
         dialog.set_default_response("download")
@@ -1214,13 +1264,32 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
         def response_cb(_dialog: Adw.AlertDialog, response: str) -> None:
             if response == "download":
+                if remember_choice.get_active():
+                    try:
+                        save_remembered_duplicate_action("keep-both")
+                    except OSError as exc:
+                        self.toast_overlay.add_toast(Adw.Toast.new(f"Could not remember this choice: {exc}"))
                 self._queue_new_download(
                     url, task,
                     audio_url=audio_url,
                     subtitle_url=subtitle_url,
                     expected_checksum=expected_checksum,
                 )
+            elif response == "replace" and replacement_target and replacement_signature:
+                self._queue_new_download(
+                    url, task,
+                    audio_url=audio_url,
+                    subtitle_url=subtitle_url,
+                    expected_checksum=expected_checksum,
+                    replacement_target=replacement_target,
+                    replacement_signature=replacement_signature,
+                )
             elif response == "skip":
+                if remember_choice.get_active():
+                    try:
+                        save_remembered_duplicate_action("skip")
+                    except OSError as exc:
+                        self.toast_overlay.add_toast(Adw.Toast.new(f"Could not remember this choice: {exc}"))
                 self.toast_overlay.add_toast(Adw.Toast.new("Duplicate download skipped."))
 
         dialog.connect("response", response_cb)
@@ -1234,12 +1303,16 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         audio_url: str | None = None,
         subtitle_url: str | None = None,
         expected_checksum: str | None = None,
+        replacement_target: str | None = None,
+        replacement_signature: dict[str, int] | None = None,
     ) -> None:
         row = DownloadRow(
             self, url, task,
             audio_url=audio_url,
             subtitle_url=subtitle_url,
             expected_checksum=expected_checksum,
+            replacement_target=replacement_target,
+            replacement_signature=replacement_signature,
         )
         self._rows.append(row)
         self.list_box.append(row)
@@ -1371,6 +1444,16 @@ class MediaGrabWindow(Adw.ApplicationWindow):
     def _download_finished(self, row: DownloadRow, state: str, detail: str) -> bool:
         row.is_active = False
         self._active_downloads.discard(row)
+        if state == "Completed" and row.replacement_target and row.replacement_signature:
+            try:
+                replace_completed_download(detail, row.replacement_target, row.replacement_signature)
+                detail = row.replacement_target
+                log_event(_LOG, "duplicate_file_replaced", url=row.url, destination=detail)
+            except (OSError, ValueError) as exc:
+                log_event(_LOG, "duplicate_file_replace_skipped", level=30, url=row.url, error=str(exc))
+                self.toast_overlay.add_toast(Adw.Toast.new(
+                    f"Original file was preserved; the new copy was saved as {Path(detail).name}."
+                ))
         if state == "Completed":
             row.output_path = Path(detail)
         row.finish(state, detail if state == "Failed" else None)

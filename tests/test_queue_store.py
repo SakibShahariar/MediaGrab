@@ -184,6 +184,31 @@ def test_expected_checksum_survives_queue_persistence_and_invalid_values_are_dro
     ]
 
 
+def test_replacement_intent_survives_queue_persistence(tmp_path: Path) -> None:
+    path = tmp_path / "queue.json"
+    entry = {
+        "url": "https://example.test/file.bin",
+        "replacement_target": "/downloads/original.bin",
+        "replacement_signature": {
+            "device": 1, "inode": 2, "size": 3, "mtime_ns": 4,
+        },
+    }
+    save_queue([entry], path)
+    assert load_queue(path) == [entry]
+
+
+def test_invalid_replacement_identity_is_dropped(tmp_path: Path) -> None:
+    path = tmp_path / "queue.json"
+    save_queue([{
+        "url": "https://example.test/file.bin",
+        "replacement_target": "/downloads/original.bin",
+        "replacement_signature": {
+            "device": True, "inode": 2, "size": 3, "mtime_ns": 4,
+        },
+    }], path)
+    assert load_queue(path) == [{"url": "https://example.test/file.bin"}]
+
+
 def test_interrupted_history_marker_survives_queue_persistence(tmp_path: Path) -> None:
     path = tmp_path / "queue.json"
     entry = {

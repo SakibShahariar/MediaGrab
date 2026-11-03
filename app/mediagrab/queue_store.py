@@ -11,7 +11,21 @@ from urllib.parse import urlparse
 from mediagrab.checksum import parse_expected_checksum
 
 OPTIONAL_URL_FIELDS = ("audio_url", "subtitle_url")
-QueueEntry = dict[str, str | bool]
+QueueEntry = dict[str, Any]
+_REPLACEMENT_SIGNATURE_FIELDS = ("device", "inode", "size", "mtime_ns")
+
+
+def _valid_replacement_signature(value: Any) -> bool:
+    return (
+        isinstance(value, dict)
+        and set(value) == set(_REPLACEMENT_SIGNATURE_FIELDS)
+        and all(
+            isinstance(value.get(field), int) and not isinstance(value.get(field), bool)
+            for field in _REPLACEMENT_SIGNATURE_FIELDS
+        )
+    )
+
+
 
 
 def default_queue_path() -> Path:
@@ -86,6 +100,11 @@ def load_queue(path: str | Path | None = None) -> list[QueueEntry]:
             entry["interrupted_recorded"] = True
         if _valid_checksum(item.get("expected_checksum")):
             entry["expected_checksum"] = item["expected_checksum"]
+        target = item.get("replacement_target")
+        signature = item.get("replacement_signature")
+        if isinstance(target, str) and target and _valid_replacement_signature(signature):
+            entry["replacement_target"] = target
+            entry["replacement_signature"] = signature
         entries.append(entry)
     return entries
 
@@ -109,6 +128,11 @@ def save_queue(entries: list[QueueEntry], path: str | Path | None = None) -> Non
             entry["interrupted_recorded"] = True
         if _valid_checksum(item.get("expected_checksum")):
             entry["expected_checksum"] = item["expected_checksum"]
+        target = item.get("replacement_target")
+        signature = item.get("replacement_signature")
+        if isinstance(target, str) and target and _valid_replacement_signature(signature):
+            entry["replacement_target"] = target
+            entry["replacement_signature"] = signature
         normalized.append(entry)
     payload = json.dumps(normalized, ensure_ascii=False, indent=2) + "\n"
     fd, temporary_name = tempfile.mkstemp(
