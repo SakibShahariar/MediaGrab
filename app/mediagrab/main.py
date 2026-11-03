@@ -1187,9 +1187,10 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         else:
             filename = original_name
         history = load_history()
-        duplicates = find_completed_file_duplicates(
+        file_duplicates = find_completed_file_duplicates(
             filename, history, expected_checksum=expected_checksum
         )
+        duplicates = list(file_duplicates)
         for entry in find_completed_url_duplicates(redact_url(url), history):
             if entry not in duplicates:
                 duplicates.append(entry)
@@ -1259,12 +1260,15 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
         dialog = Adw.AlertDialog(
             heading="Possible duplicate download",
-            body="Do you want to keep another copy or skip this download?",
+            body="You can replace the existing file, keep both, skip this download, or cancel.",
         )
         dialog.set_extra_child(content)
+        # Replacement is offered only for a file whose current size still
+        # matches a completed-file history record. A URL-only history match
+        # must never make an unrelated or changed path replaceable.
         candidate_paths = {
             str(Path(str(entry["destination"])) / str(entry["filename"]))
-            for entry in duplicates
+            for entry in file_duplicates
         }
         replacement_target = next(iter(candidate_paths)) if len(candidate_paths) == 1 else None
         replacement_signature = (
