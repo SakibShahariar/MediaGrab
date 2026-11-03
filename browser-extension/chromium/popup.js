@@ -42,7 +42,7 @@ async function refreshDetectionControls() {
   detectionButton.dataset.enabled = enabled ? "true" : "false";
   detectionButton.textContent = enabled ? "Disable background detection" : "Enable background detection (all sites)";
   detectionStatus.textContent = enabled
-    ? "On for HTTP(S) sites. Private windows are ignored. Only response Content-Type and candidate URLs are observed; request headers and bodies are not read."
+    ? "On for HTTP(S) sites. Private-window availability follows your browser extension settings. Only response Content-Type and candidate URLs are observed; request headers and bodies are not read."
     : "Off by default. Enabling requests optional access to all HTTP(S) sites so cross-origin media CDN requests can be seen.";
 }
 
@@ -170,10 +170,6 @@ scanButton.addEventListener("click", async () => {
   try {
     const [tab] = await api.tabs.query({active: true, currentWindow: true});
     if (!tab || typeof tab.id !== "number") throw new Error("No active tab");
-    if (tab.incognito === true) {
-      statusNode.textContent = "Private windows are not scanned. MediaGrab does not retain candidates from private browsing.";
-      return;
-    }
     const [resources, observed] = await Promise.all([scanTab(tab.id), getObservedCandidates(tab.id)]);
     const found = new Map();
     for (const item of observed) {
@@ -193,7 +189,7 @@ scanButton.addEventListener("click", async () => {
       ? "Found " + sorted.length + " possible resource(s), including " + networkCount + " observed network response(s); showing up to " + MAX_CANDIDATES + "."
       : "No recognizable media URLs found. This page may use blob URLs, protected streams, or opaque request URLs.";
   } catch (error) {
-    statusNode.textContent = "Could not scan this tab. Try a normal website tab and check extension permissions.";
+    statusNode.textContent = "Could not scan this tab. Check that the browser permits MediaGrab to access it.";
     console.error("MediaGrab scan failed:", error.message);
   } finally {
     scanButton.disabled = false;

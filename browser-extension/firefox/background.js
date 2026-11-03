@@ -88,9 +88,7 @@ function mutateCandidates(mutator) {
 }
 
 function rememberCandidate(details) {
-  // Private-window requests are never retained, even when the user enabled
-  // the extension in private browsing settings.
-  if (!details || details.incognito === true) return;
+  if (!details) return;
   if (!Number.isInteger(details.tabId) || details.tabId < 0) return;
   if (typeof details.url !== "string") return;
   if (Number.isInteger(details.statusCode) && (details.statusCode < 200 || details.statusCode >= 300)) return;
@@ -136,7 +134,6 @@ api.runtime.onStartup.addListener(() => {
   createMenus().catch((error) => console.error("MediaGrab menu setup failed:", error.message));
 });
 api.contextMenus.onClicked.addListener((info, tab) => {
-  if (tab && tab.incognito === true) return;
   const url = info.menuItemId === MENU_LINK ? info.linkUrl : info.pageUrl;
   sendUrl(url).catch((error) => {
     // Never log the URL: signed media links may contain private tokens.

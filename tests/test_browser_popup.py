@@ -97,11 +97,13 @@ def test_background_keeps_existing_context_menu_native_handoff() -> None:
         assert 'type: "add-url"' in source
 
 
-def test_popup_refuses_to_scan_private_windows() -> None:
+def test_popup_does_not_block_browser_permitted_private_windows() -> None:
     for browser in ("firefox", "chromium"):
         source = (EXT / browser / "popup.js").read_text(encoding="utf-8")
-        assert "tab.incognito === true" in source
-        assert "Private windows are not scanned" in source
+        assert "tab.incognito === true" not in source
+        assert "Private windows are not scanned" not in source
+        assert "scanTab(tab.id)" in source
+        assert "Private-window availability follows your browser extension settings." in source
 
 
 def test_popup_filters_detected_candidates_without_reloading_scan() -> None:

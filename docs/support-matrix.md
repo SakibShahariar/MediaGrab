@@ -21,6 +21,7 @@ This matrix describes behavior implemented and covered by the repository's curre
 | Current-tab scan | User clicks **Scan this tab**; the popup inspects page-visible resource timing entries, media elements, subtitle tracks, and media-looking links. | Blob URLs, opaque requests, and protected resources may not be usable. |
 | Background observation | Optional opt-in `webRequest.onHeadersReceived` observer classifies response Content-Type and URL, deduplicates per tab/URL, and shows candidates in the popup. | Off by default; requires optional access to all HTTP(S) sites to observe cross-origin CDNs. Candidate URLs live in `storage.session` and are cleared on tab navigation/close, permission revocation, or browser exit. Request headers and bodies are not read. |
 | Native handoff | Context-menu actions use `add-url` for explicit immediate downloads. Popup candidates use `add-candidate` to create a persisted **Detected** row in the app; the user can inspect/download or dismiss it. | Actual browser-to-desktop runtime validation is still pending for installed browser builds. |
+| Private/incognito windows | The same page scan, optional background response observation, and context-menu handoff are available when the user allows the extension to run in private windows through the browser's native extension settings. | Browser permission is required; MediaGrab adds no separate private-window toggle. Real-browser validation is pending. |
 | Request context | Signed query parameters are preserved for legitimate downloads. | Browser cookies and authorization headers are not collected or stored. Authenticated streams may fail. |
 
 ## Security and unsupported content
@@ -30,7 +31,7 @@ This matrix describes behavior implemented and covered by the repository's curre
 - MediaGrab does not bypass DRM or other access controls.
 - Browser capture does not transfer cookies, authorization headers, or other authenticated request context. Background observation reads response Content-Type only and does not inspect request headers or response bodies.
 - Vivaldi Snap and Flatpak builds do not expose the Native Messaging API. Brave Flatpak registration is not validated.
-- Private-window capture behavior has not been implemented as a separately configurable feature.
+- Private/incognito availability is controlled by the browser's native extension permission. When enabled, MediaGrab can observe and hand off the same candidate URLs as in regular windows; observed candidates remain in browser-session storage. Browser cookies and authorization headers are not collected or transferred.
 
 ## Automated test evidence
 

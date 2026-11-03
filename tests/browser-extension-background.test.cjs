@@ -120,10 +120,11 @@ for (const browserName of ["firefox", "chromium"]) {
     await settle();
 
     const candidates = h.session[STORAGE_KEY];
-    assert.equal(candidates.length, 3);
+    assert.equal(candidates.length, 4, "private-window responses are observed when the browser runs the extension there");
     assert.equal(candidates.filter((item) => item.tabId === 7 && item.url === hls.url).length, 1);
     assert.ok(candidates.some((item) => item.kind === "DASH manifest"));
     assert.ok(candidates.some((item) => item.tabId === 8 && item.url === hls.url));
+    assert.ok(candidates.some((item) => item.url === "https://cdn.example.test/private-window.mp4"));
     assert.ok(candidates.every((item) => !("requestHeaders" in item)));
 
     h.tabsUpdated.fire(7, {status: "loading"}, {});
@@ -160,9 +161,10 @@ for (const browserName of ["firefox", "chromium"]) {
       pageUrl: "https://page.example.test/"
     }, {incognito: true});
     await settle();
-    assert.equal(h.sentMessages.length, 1, "private-window context menus must not hand off URLs");
+    assert.equal(h.sentMessages.length, 2, "private-window context-menu handoff is allowed when the browser runs the extension there");
     assert.equal(h.sentMessages[0].host, "io.github.SakibShahariar.MediaGrab");
     assert.equal(h.sentMessages[0].message.type, "add-url");
     assert.equal(h.sentMessages[0].message.url, "https://media.example.test/file.mp4?sig=private");
+    assert.equal(h.sentMessages[1].message.url, "https://media.example.test/private.mp4");
   });
 }
