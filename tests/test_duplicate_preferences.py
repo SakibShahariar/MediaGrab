@@ -38,3 +38,13 @@ def test_preference_file_is_private(tmp_path: Path) -> None:
     path = tmp_path / "duplicate-preferences.json"
     save_remembered_duplicate_action("skip", path)
     assert path.stat().st_mode & 0o077 == 0
+
+
+
+def test_clear_remembered_choice_returns_to_prompting(tmp_path: Path) -> None:
+    from mediagrab.duplicate_preferences import clear_remembered_duplicate_action
+
+    path = tmp_path / "duplicate-preferences.json"
+    save_remembered_duplicate_action("skip", path)
+    clear_remembered_duplicate_action(path)
+    assert load_remembered_duplicate_action(path) is None

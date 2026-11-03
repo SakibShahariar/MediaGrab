@@ -57,3 +57,10 @@ def save_remembered_duplicate_action(action: str, path: str | Path | None = None
     except Exception:
         temporary.unlink(missing_ok=True)
         raise
+
+
+
+def clear_remembered_duplicate_action(path: str | Path | None = None) -> None:
+    """Forget the remembered choice so the next duplicate prompts again."""
+    target = Path(path) if path is not None else default_preferences_path()
+    target.unlink(missing_ok=True)

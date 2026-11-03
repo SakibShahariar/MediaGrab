@@ -32,6 +32,7 @@ from mediagrab.duplicate_detection import (
 from mediagrab.duplicate_preferences import (
     load_remembered_duplicate_action,
     save_remembered_duplicate_action,
+    clear_remembered_duplicate_action,
 )
 from mediagrab.media_stream import MediaStreamTask
 from mediagrab.settings_store import export_settings, import_settings, load_settings, restore_settings_backup, save_settings
@@ -618,6 +619,18 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         notifications = Gtk.CheckButton(label="Enable desktop notifications")
         notifications.set_active(bool(settings["notifications_enabled"]))
         content.append(notifications)
+        forget_duplicate_choice = Gtk.Button(label="Forget remembered duplicate choice")
+        forget_duplicate_choice.add_css_class("flat")
+
+        def forget_duplicate_preference(_button: Gtk.Button) -> None:
+            try:
+                clear_remembered_duplicate_action()
+            except OSError as exc:
+                self.toast_overlay.add_toast(Adw.Toast.new(f"Could not forget duplicate choice: {exc}"))
+                return
+            self.toast_overlay.add_toast(Adw.Toast.new("Remembered duplicate choice cleared."))
+        forget_duplicate_choice.connect("clicked", forget_duplicate_preference)
+        content.append(forget_duplicate_choice)
         copy_button = Gtk.Button(label="Copy redacted diagnostics")
         copy_button.add_css_class("flat")
         copy_button.connect("clicked", self._on_copy_diagnostics)
