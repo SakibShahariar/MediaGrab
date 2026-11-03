@@ -15,7 +15,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
-from mediagrab.downloader import DownloadError, DownloadPaused, DownloadProgress, DownloadTask
+from mediagrab.downloader import DownloadError, DownloadPaused, DownloadProgress, DownloadTask, filename_from_url
 from mediagrab.formatting import format_eta
 from mediagrab.media_inspector import ManifestInspection, inspect_manifest, format_dash_representation_label
 from mediagrab.capture import MediaKind, HLSVariant
@@ -23,7 +23,8 @@ from mediagrab.task_factory import create_download_task
 from mediagrab.queue_store import load_queue, save_queue
 from mediagrab.history_store import append_history, make_history_entry, load_history, clear_history
 from mediagrab.history_filter import matches_history_entry, load_history_filter_preferences, save_history_filter_preferences
-from mediagrab.duplicate_detection import has_pending_duplicate
+from mediagrab.duplicate_detection import has_pending_duplicate, find_completed_file_duplicates
+from mediagrab.media_stream import MediaStreamTask
 from mediagrab.settings_store import export_settings, import_settings, load_settings, restore_settings_backup, save_settings
 from mediagrab.diagnostics import configure_logging, get_logger, log_event, read_diagnostics
 from mediagrab.url_utils import is_valid_http_url, redact_url
@@ -1144,14 +1145,108 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         except ValueError as exc:
             self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
             return False
-        row = DownloadRow(self, url, task, audio_url=audio_url, subtitle_url=subtitle_url, expected_checksum=expected_checksum)
+
+        original_name = filename_from_url(url)
+        if isinstance(task, MediaStreamTask):
+            filename = f"{Path(original_name).stem or 'media'}.mkv"
+        else:
+            filename = original_name
+        duplicates = find_completed_file_duplicates(filename, load_history())
+        if duplicates:
+            self._show_completed_duplicate_dialog(
+                url, task, duplicates,
+                audio_url=audio_url,
+                subtitle_url=subtitle_url,
+                expected_checksum=expected_checksum,
+            )
+            return True
+
+        self._queue_new_download(
+            url, task,
+            audio_url=audio_url,
+            subtitle_url=subtitle_url,
+            expected_checksum=expected_checksum,
+        )
+        return True
+
+    def _show_completed_duplicate_dialog(
+        self,
+        url: str,
+        task: DownloadTask | MediaStreamTask,
+        duplicates: list[dict[str, object]],
+        *,
+        audio_url: str | None = None,
+        subtitle_url: str | None = None,
+        expected_checksum: str | None = None,
+    ) -> None:
+        """Ask before downloading when history points to an unchanged completed file."""
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        content.set_margin_top(6)
+        content.set_margin_bottom(6)
+        content.set_margin_start(6)
+        content.set_margin_end(6)
+        content.append(Gtk.Label(
+            label="A file with this name and recorded size already exists in download history. This is a possible duplicate, not proof that the media contents are identical.",
+            wrap=True,
+            xalign=0,
+        ))
+        for entry in duplicates[:4]:
+            content.append(Gtk.Label(
+                label=str(Path(str(entry["destination"])) / str(entry["filename"])),
+                wrap=True,
+                xalign=0,
+                selectable=True,
+            ))
+        if len(duplicates) > 4:
+            content.append(Gtk.Label(label=f"And {len(duplicates) - 4} more matching history entries.", xalign=0))
+
+        dialog = Adw.AlertDialog(
+            heading="Possible duplicate download",
+            body="Do you want to keep another copy or skip this download?",
+        )
+        dialog.set_extra_child(content)
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("skip", "Skip download")
+        dialog.add_response("download", "Keep both (new filename)")
+        dialog.set_default_response("download")
+        dialog.set_close_response("cancel")
+        dialog.set_response_appearance("download", Adw.ResponseAppearance.SUGGESTED)
+
+        def response_cb(_dialog: Adw.AlertDialog, response: str) -> None:
+            if response == "download":
+                self._queue_new_download(
+                    url, task,
+                    audio_url=audio_url,
+                    subtitle_url=subtitle_url,
+                    expected_checksum=expected_checksum,
+                )
+            elif response == "skip":
+                self.toast_overlay.add_toast(Adw.Toast.new("Duplicate download skipped."))
+
+        dialog.connect("response", response_cb)
+        dialog.present(self)
+
+    def _queue_new_download(
+        self,
+        url: str,
+        task: DownloadTask | MediaStreamTask,
+        *,
+        audio_url: str | None = None,
+        subtitle_url: str | None = None,
+        expected_checksum: str | None = None,
+    ) -> None:
+        row = DownloadRow(
+            self, url, task,
+            audio_url=audio_url,
+            subtitle_url=subtitle_url,
+            expected_checksum=expected_checksum,
+        )
         self._rows.append(row)
         self.list_box.append(row)
         self._update_count()
         self._persist_queue()
         self._enqueue_download(row)
         self.toast_overlay.add_toast(Adw.Toast.new("Added to download queue."))
-        return True
 
     def _enqueue_download(self, row: DownloadRow) -> None:
         if row in self._pending_downloads or row in self._active_downloads:
