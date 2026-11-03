@@ -106,4 +106,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/development.md](docs/developmen
 
 ## License
 
-The project license will be selected before distributing implementation code.
+MediaGrab is licensed under the **GNU General Public License v3.0 or later** ([`GPL-3.0-or-later`](https://spdx.org/licenses/GPL-3.0-or-later.html)). See [LICENSE](LICENSE) for the full license text.
