@@ -26,6 +26,7 @@ from mediagrab.history_filter import matches_history_entry, load_history_filter_
 from mediagrab.duplicate_detection import (
     has_pending_duplicate,
     find_completed_file_duplicates,
+    find_completed_url_duplicates,
     capture_replace_signature,
     replace_completed_download,
 )
@@ -1185,9 +1186,13 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             filename = f"{Path(original_name).stem or 'media'}.mkv"
         else:
             filename = original_name
+        history = load_history()
         duplicates = find_completed_file_duplicates(
-            filename, load_history(), expected_checksum=expected_checksum
+            filename, history, expected_checksum=expected_checksum
         )
+        for entry in find_completed_url_duplicates(redact_url(url), history):
+            if entry not in duplicates:
+                duplicates.append(entry)
         if duplicates:
             remembered_action = load_remembered_duplicate_action()
             if remembered_action == "skip":
@@ -1234,7 +1239,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         content.set_margin_start(6)
         content.set_margin_end(6)
         content.append(Gtk.Label(
-            label="A file with this name and recorded size already exists in download history. This is a possible duplicate, not proof that the media contents are identical.",
+            label="This URL has a completed download in history, or a saved file has a matching name and size. These are possible duplicate signals, not proof that the media contents are identical.",
             wrap=True,
             xalign=0,
         ))

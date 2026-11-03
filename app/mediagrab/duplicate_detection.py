@@ -159,3 +159,20 @@ def replace_completed_download(
     except Exception:
         staging.unlink(missing_ok=True)
         raise
+
+
+
+def find_completed_url_duplicates(
+    redacted_source_url: str,
+    history: Iterable[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Find completed history entries for the same already-redacted source URL."""
+    if not isinstance(redacted_source_url, str) or not redacted_source_url:
+        return []
+    return [
+        entry
+        for entry in history
+        if isinstance(entry, dict)
+        and entry.get("outcome") == "Completed"
+        and entry.get("source_url") == redacted_source_url
+    ]

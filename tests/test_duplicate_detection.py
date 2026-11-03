@@ -8,6 +8,7 @@ import pytest
 from mediagrab.duplicate_detection import (
     capture_replace_signature,
     find_completed_file_duplicates,
+    find_completed_url_duplicates,
     has_pending_duplicate,
     replace_completed_download,
 )
@@ -196,3 +197,21 @@ def test_optional_checksum_confirms_or_rules_out_same_size_candidate(tmp_path: P
     assert find_completed_file_duplicates(
         "video.mkv", [entry], expected_checksum=different_same_size
     ) == []
+
+
+
+def test_finds_completed_history_entries_for_same_redacted_url() -> None:
+    completed = {
+        "source_url": "https://example.test/video.mp4?…",
+        "outcome": "Completed",
+        "filename": "video.mp4",
+    }
+    history = [
+        completed,
+        {**completed, "outcome": "Failed"},
+        {**completed, "source_url": "https://example.test/other.mp4?…"},
+    ]
+    assert find_completed_url_duplicates(
+        "https://example.test/video.mp4?…", history
+    ) == [completed]
+    assert find_completed_url_duplicates("", history) == []
