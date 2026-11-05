@@ -117,3 +117,11 @@ Final observed result: the Fedora RPM workflow built the package successfully, v
 
 The extractor hardening commit's two workflows completed successfully. The tests added in this follow-up exercise the global candidate ceiling across multiple independently loaded plugins, in addition to the existing per-plugin ceiling and worker-slot tests. Exact-SHA CI results for this follow-up will be recorded after the runs complete.
 
+
+
+## 2026-11-06 history filter follow-up
+
+- `01aeca4` and `f465599`: Tests and Fedora RPM green.
+- `8a0a947` and `27de31c`: both workflows red because the saved-filter round-trip fixture omitted the new category default.
+- `29cc6e7`: Fedora RPM red for the same fixture; its Tests run was still in progress when checked.
+- `99ea196`: fixture and category/1,000-entry tests corrected; Tests run `42096872127` and Fedora RPM run `42096872211` both green. Issue #38 closed after verification.
