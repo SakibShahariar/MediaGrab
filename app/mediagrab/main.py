@@ -41,6 +41,7 @@ from mediagrab.settings_store import export_settings, import_settings, load_sett
 from mediagrab.diagnostics import configure_logging, get_logger, log_event, read_diagnostics
 from mediagrab.url_utils import is_valid_http_url, redact_url
 from mediagrab.cli import HELP_TEXT, parse_command
+from mediagrab.dbus_api import register_dbus_api
 from mediagrab.shortcuts import COMMAND_PALETTE_ACTIONS, SHORTCUTS
 
 
@@ -1595,6 +1596,7 @@ class MediaGrabApplication(Adw.Application):
             # Diagnostics must never prevent the download manager from starting.
             pass
         self.connect("activate", self._on_activate)
+        self.connect("startup", self._on_dbus_startup)
         self.connect("command-line", self._on_command_line)
         show_action = Gio.SimpleAction.new("show-window", None)
         show_action.connect("activate", lambda *_args: self._on_activate(self))
@@ -1649,90 +1651,93 @@ class MediaGrabApplication(Adw.Application):
             window = MediaGrabWindow(application=app)
         window.present()
 
-    def _on_command_line(self, app: Adw.Application, command_line: Gio.ApplicationCommandLine) -> int:
-        args = command_line.get_arguments()[1:]
+    def _on_dbus_startup(self, _app: Adw.Application) -> None:
         try:
-            action, argument = parse_command(args)
-        except ValueError as exc:
-            command_line.print(f"{exc}\n")
-            return 2
+            register_dbus_api(self, Gio, GLib)
+        except (GLib.Error, RuntimeError, ValueError) as exc:
+            _LOG.warning("Could not export the public D-Bus API: %s", exc)
 
+    def _execute_external_command(self, action: str, argument: str | None = None) -> str:
+        """Execute one validated CLI/D-Bus operation through the same queue path."""
         if action == "help":
-            command_line.print(HELP_TEXT)
-            return 0
-
+            return HELP_TEXT.rstrip()
         if action == "activate":
-            self._on_activate(app)
-            return 0
+            self._on_activate(self)
+            return "MediaGrab window activated."
+
+        window = self.get_active_window()
+        if not isinstance(window, MediaGrabWindow):
+            window = MediaGrabWindow(application=self)
 
         if action in {"list", "status"}:
-            window = app.get_active_window()
-            if not isinstance(window, MediaGrabWindow):
-                window = MediaGrabWindow(application=app)
             rows = [
-                {
-                    "id": index,
-                    "url": row._source_url,
-                    "status": row.status_label.get_text(),
-                }
+                {"id": index, "url": row._source_url, "status": row.status_label.get_text()}
                 for index, row in enumerate(window._rows, start=1)
             ]
             if action == "list":
-                command_line.print(json.dumps(rows, ensure_ascii=False) + "\n")
-            else:
-                counts = {
-                    "total": len(rows),
-                    "active": sum(row.is_active for row in window._rows),
-                    "queued": sum(row.status_label.get_text() == "Queued" for row in window._rows),
-                    "completed": sum(row.status_label.get_text() == "Completed" for row in window._rows),
-                    "failed": sum(row.status_label.get_text() == "Failed" for row in window._rows),
-                }
-                command_line.print(json.dumps(counts, ensure_ascii=False) + "\n")
-            return 0
-
-        self._on_activate(app)
-        window = app.get_active_window()
-        if not isinstance(window, MediaGrabWindow):
-            command_line.print("Could not access the MediaGrab window.\n")
-            return 1
+                return json.dumps(rows, ensure_ascii=False)
+            counts = {
+                "total": len(rows),
+                "active": sum(row.is_active for row in window._rows),
+                "queued": sum(row.status_label.get_text() == "Queued" for row in window._rows),
+                "completed": sum(row.status_label.get_text() == "Completed" for row in window._rows),
+                "failed": sum(row.status_label.get_text() == "Failed" for row in window._rows),
+            }
+            return json.dumps(counts, ensure_ascii=False)
 
         if action in {"add-url", "add-candidate"}:
-            assert argument is not None
+            if argument is None:
+                raise ValueError("A URL argument is required.")
             accepted = (
                 window.add_candidate_url(argument)
                 if action == "add-candidate"
                 else window.add_download_url(argument)
             )
-            return 0 if accepted else 2
+            if not accepted:
+                raise ValueError("The URL was rejected or is already queued.")
+            return f"{action} accepted."
 
-        assert argument is not None
-        row_id = int(argument)
+        if argument is None:
+            raise ValueError("A queue item ID is required.")
+        try:
+            row_id = int(argument)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Queue ID must be a positive integer.") from exc
+        if row_id < 1:
+            raise ValueError("Queue ID must be a positive integer.")
         if row_id > len(window._rows):
-            command_line.print(f"No queue item with ID {row_id}.\n")
-            return 2
+            raise LookupError(f"No queue item with ID {row_id}.")
         row = window._rows[row_id - 1]
         if action == "pause":
             if not isinstance(row.task, DownloadTask):
-                command_line.print("Pause is only supported for direct HTTP downloads.\n")
-                return 2
+                raise ValueError("Pause is only supported for direct HTTP downloads.")
             if row not in window._pending_downloads and row not in window._active_downloads:
-                command_line.print(f"Queue item {row_id} is not active or queued.\n")
-                return 2
+                raise RuntimeError(f"Queue item {row_id} is not active or queued.")
             window.pause_download(row)
         elif action == "cancel":
             if row not in window._pending_downloads and row not in window._active_downloads:
-                command_line.print(f"Queue item {row_id} is not active or queued.\n")
-                return 2
+                raise RuntimeError(f"Queue item {row_id} is not active or queued.")
             window.cancel_download(row)
         elif action in {"resume", "retry"}:
             if row in window._pending_downloads or row in window._active_downloads:
-                command_line.print(f"Queue item {row_id} is already active or queued.\n")
-                return 2
+                raise RuntimeError(f"Queue item {row_id} is already active or queued.")
             if row.status_label.get_text() not in {"Failed", "Cancelled", "Interrupted", "Paused", "Detected"}:
-                command_line.print(f"Queue item {row_id} cannot be resumed from its current state.\n")
-                return 2
+                raise RuntimeError(f"Queue item {row_id} cannot be resumed from its current state.")
             window.retry_download(row)
-        command_line.print(f"{action} requested for queue item {row_id}.\n")
+        else:
+            raise ValueError(f"Unsupported operation: {action}")
+        return f"{action} requested for queue item {row_id}."
+
+    def _on_command_line(self, _app: Adw.Application, command_line: Gio.ApplicationCommandLine) -> int:
+        args = command_line.get_arguments()[1:]
+        try:
+            action, argument = parse_command(args)
+            result = self._execute_external_command(action, argument)
+        except (ValueError, LookupError, RuntimeError) as exc:
+            command_line.print(f"{exc}\\n")
+            return 2
+        if action in {"help", "list", "status"}:
+            command_line.print(result + "\\n")
         return 0
 
 
