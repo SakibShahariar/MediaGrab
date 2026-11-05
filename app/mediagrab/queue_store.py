@@ -146,6 +146,9 @@ def save_queue(entries: list[QueueEntry], path: str | Path | None = None) -> Non
             entry["expected_checksum"] = item["expected_checksum"]
         if _valid_output_format(item.get("output_format")):
             entry["output_format"] = item["output_format"]
+        stream_index = item.get("dash_video_stream_index")
+        if isinstance(stream_index, int) and not isinstance(stream_index, bool) and stream_index >= 0:
+            entry["dash_video_stream_index"] = stream_index
         target = item.get("replacement_target")
         signature = item.get("replacement_signature")
         if isinstance(target, str) and target and _valid_replacement_signature(signature):
