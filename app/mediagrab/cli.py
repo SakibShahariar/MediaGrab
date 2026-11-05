@@ -12,6 +12,18 @@ _USAGE = (
     "[--list|--status] | [--pause|--resume|--retry|--cancel QUEUE_ID]"
 )
 
+HELP_TEXT = """MediaGrab command-line options:
+  --help, -h                 Show this help
+  --add-url URL              Add a direct HTTP(S) download
+  --add-candidate URL        Add a media candidate for review
+  --list                     Print queue entries as JSON
+  --status                   Print queue counts as JSON
+  --pause ID                 Pause a direct download
+  --resume ID                Resume a download
+  --retry ID                 Retry a download
+  --cancel ID                Cancel a download
+"""
+
 
 def parse_command(args: list[str]) -> tuple[str, str | None]:
     """Parse one supported CLI operation and validate its argument."""

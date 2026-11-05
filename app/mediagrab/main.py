@@ -39,7 +39,7 @@ from mediagrab.media_stream import MediaStreamTask
 from mediagrab.settings_store import export_settings, import_settings, load_settings, restore_settings_backup, save_settings
 from mediagrab.diagnostics import configure_logging, get_logger, log_event, read_diagnostics
 from mediagrab.url_utils import is_valid_http_url, redact_url
-from mediagrab.cli import parse_command
+from mediagrab.cli import HELP_TEXT, parse_command
 from mediagrab.shortcuts import COMMAND_PALETTE_ACTIONS, SHORTCUTS
 
 
@@ -1647,18 +1647,7 @@ class MediaGrabApplication(Adw.Application):
             return 2
 
         if action == "help":
-            command_line.print(
-                "MediaGrab command-line options:\\n"
-                "  --help, -h                 Show this help\\n"
-                "  --add-url URL              Add a direct HTTP(S) download\\n"
-                "  --add-candidate URL        Add a media candidate for review\\n"
-                "  --list                     Print queue entries as JSON\\n"
-                "  --status                   Print queue counts as JSON\\n"
-                "  --pause ID                 Pause a direct download\\n"
-                "  --resume ID                Resume a download\\n"
-                "  --retry ID                 Retry a download\\n"
-                "  --cancel ID                Cancel a download\\n"
-            )
+            command_line.print(HELP_TEXT)
             return 0
 
         if action == "activate":

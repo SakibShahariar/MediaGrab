@@ -44,3 +44,14 @@ def test_parse_supported_commands(args, expected) -> None:
 def test_parse_rejects_invalid_commands_and_arguments(args) -> None:
     with pytest.raises(ValueError):
         parse_command(args)
+
+
+
+def test_help_text_documents_every_supported_operation() -> None:
+    from mediagrab.cli import HELP_TEXT
+
+    for option in (
+        "--help", "--add-url", "--add-candidate", "--list", "--status",
+        "--pause", "--resume", "--retry", "--cancel",
+    ):
+        assert option in HELP_TEXT
