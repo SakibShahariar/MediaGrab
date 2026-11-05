@@ -76,6 +76,7 @@ def append_history(entry: dict[str, Any], path: str | Path | None = None) -> Non
         "size": size,
         "outcome": entry["outcome"],
         "timestamp": entry["timestamp"],
+        "category": entry.get("category", "Uncategorized") if isinstance(entry.get("category", "Uncategorized"), str) else "Uncategorized",
         "checksum_status": checksum_status,
     }
     history_path = Path(path) if path is not None else default_history_path()
