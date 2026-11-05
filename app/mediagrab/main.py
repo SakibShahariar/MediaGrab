@@ -460,6 +460,12 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         date_filter.set_tooltip_text("Filter by date")
         date_filter.set_selected(("Any time", "Last 24 hours", "Last 7 days", "Last 30 days").index(preferences["date_range"]))
         filter_bar.append(date_filter)
+        category_filter = Gtk.DropDown.new_from_strings(["All categories", "Direct download", "HLS/DASH stream", "Uncategorized"])
+        set_accessible_label(category_filter, "Filter history by category")
+        category_filter.set_hexpand(True)
+        category_filter.set_tooltip_text("Filter by download category")
+        category_filter.set_selected(("All categories", "Direct download", "HLS/DASH stream", "Uncategorized").index(preferences["category"]))
+        filter_bar.append(category_filter)
         size_filter = Gtk.DropDown.new_from_strings([
             "Any size", "Unknown size", "Under 100 MB", "100 MB–1 GB", "Over 1 GB"
         ])
@@ -531,6 +537,9 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             size_options = ("Any size", "Unknown size", "Under 100 MB", "100 MB–1 GB", "Over 1 GB")
             size_index = size_filter.get_selected()
             size_value = size_options[size_index] if size_index < len(size_options) else "Any size"
+            categories = ("All categories", "Direct download", "HLS/DASH stream", "Uncategorized")
+            category_index = category_filter.get_selected()
+            category_value = categories[category_index] if category_index < len(categories) else "All categories"
             for row, item in rows:
                 row.set_visible(matches_history_entry(
                     item,
@@ -540,6 +549,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                     domain=domain_filter.get_text(),
                     since=cutoff,
                     size_filter=size_value,
+                    category=category_value,
                 ))
 
         def confirm_clear(_button: Gtk.Button) -> None:
@@ -572,6 +582,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         file_type_filter.connect("notify::selected", apply_filter)
         date_filter.connect("notify::selected", apply_filter)
         size_filter.connect("notify::selected", apply_filter)
+        category_filter.connect("notify::selected", apply_filter)
         domain_filter.connect("changed", apply_filter)
         clear_button.connect("clicked", confirm_clear)
 
@@ -580,6 +591,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             type_options = ("All files", "Video", "Audio", "HLS/DASH", "Subtitles", "Other")
             date_options = ("Any time", "Last 24 hours", "Last 7 days", "Last 30 days")
             size_options = ("Any size", "Unknown size", "Under 100 MB", "100 MB–1 GB", "Over 1 GB")
+            category_options = ("All categories", "Direct download", "HLS/DASH stream", "Uncategorized")
             try:
                 save_history_filter_preferences({
                     "query": search.get_text(),
@@ -588,6 +600,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                     "domain": domain_filter.get_text(),
                     "date_range": date_options[date_filter.get_selected()],
                     "size_filter": size_options[size_filter.get_selected()],
+                    "category": category_options[category_filter.get_selected()],
                 })
             except (OSError, ValueError) as exc:
                 self.toast_overlay.add_toast(Adw.Toast.new(f"Could not save history filters: {exc}"))
@@ -1619,6 +1632,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                     size=size,
                     outcome=state,
                     checksum_status=checksum_status,
+                    category=("HLS/DASH stream" if isinstance(row.task, MediaStreamTask) else "Direct download"),
                 ))
             except (OSError, ValueError) as exc:
                 _LOG.warning("Could not persist download history: %s", exc)
