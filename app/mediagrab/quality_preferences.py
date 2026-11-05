@@ -39,6 +39,11 @@ def save_preferred_video_height(height: int, path: str | Path | None = None) -> 
             output.flush()
             os.fsync(output.fileno())
         os.replace(temporary, target)
+        directory_fd = os.open(target.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
     except Exception:
         temporary.unlink(missing_ok=True)
         raise

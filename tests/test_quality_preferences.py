@@ -47,3 +47,41 @@ def test_invalid_or_corrupt_preference_is_ignored(tmp_path: Path) -> None:
 )
 def test_preferred_quality_index_uses_best_available_height(heights, preferred, expected):
     assert preferred_quality_index(heights, preferred) == expected
+
+
+
+def test_preference_save_fsyncs_file_and_parent_directory(tmp_path: Path, monkeypatch) -> None:
+    import os
+    import stat
+    from mediagrab import quality_preferences
+
+    calls = []
+    original_fsync = os.fsync
+
+    def recording_fsync(descriptor: int) -> None:
+        calls.append(stat.S_ISDIR(os.fstat(descriptor).st_mode))
+        original_fsync(descriptor)
+
+    monkeypatch.setattr(quality_preferences.os, "fsync", recording_fsync)
+    target = tmp_path / "private" / "quality.json"
+    save_preferred_video_height(720, target)
+
+    assert calls == [False, True]
+    assert target.parent.stat().st_mode & 0o077 == 0
+
+
+def test_failed_replace_preserves_previous_quality_preference(tmp_path: Path, monkeypatch) -> None:
+    from mediagrab import quality_preferences
+
+    target = tmp_path / "quality.json"
+    save_preferred_video_height(720, target)
+
+    def fail_replace(_source, _destination) -> None:
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr(quality_preferences.os, "replace", fail_replace)
+    with pytest.raises(OSError, match="simulated replace failure"):
+        save_preferred_video_height(1080, target)
+
+    assert load_preferred_video_height(target) == 720
+    assert not list(tmp_path.glob("*.tmp"))
