@@ -27,12 +27,15 @@ def matches_history_entry(
     domain: str = "",
     since: datetime | None = None,
     size_filter: str = "Any size",
+    category: str = "All categories",
 ) -> bool:
     """Return whether a history record satisfies every supplied filter."""
     searchable = " ".join(str(value) for value in entry.values()).casefold()
     if query.strip().casefold() not in searchable:
         return False
     if status != "All statuses" and entry.get("outcome") != status:
+        return False
+    if category != "All categories" and entry.get("category", "Uncategorized") != category:
         return False
 
     filename = str(entry.get("filename", ""))
@@ -89,12 +92,14 @@ _FILTER_PREFERENCES = {
     "domain": "",
     "date_range": "Any time",
     "size_filter": "Any size",
+    "category": "All categories",
 }
 _ALLOWED_FILTER_VALUES = {
     "status": {"All statuses", "Completed", "Failed", "Cancelled", "Paused"},
     "file_type": {"All files", "Video", "Audio", "HLS/DASH", "Subtitles", "Other"},
     "date_range": {"Any time", "Last 24 hours", "Last 7 days", "Last 30 days"},
     "size_filter": {"Any size", "Unknown size", "Under 100 MB", "100 MB–1 GB", "Over 1 GB"},
+    "category": {"All categories", "Direct download", "HLS/DASH stream", "Uncategorized"},
 }
 
 
