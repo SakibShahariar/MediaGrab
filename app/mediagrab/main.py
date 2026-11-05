@@ -1646,6 +1646,21 @@ class MediaGrabApplication(Adw.Application):
             command_line.print(f"{exc}\n")
             return 2
 
+        if action == "help":
+            command_line.print(
+                "MediaGrab command-line options:\\n"
+                "  --help, -h                 Show this help\\n"
+                "  --add-url URL              Add a direct HTTP(S) download\\n"
+                "  --add-candidate URL        Add a media candidate for review\\n"
+                "  --list                     Print queue entries as JSON\\n"
+                "  --status                   Print queue counts as JSON\\n"
+                "  --pause ID                 Pause a direct download\\n"
+                "  --resume ID                Resume a download\\n"
+                "  --retry ID                 Retry a download\\n"
+                "  --cancel ID                Cancel a download\\n"
+            )
+            return 0
+
         if action == "activate":
             self._on_activate(app)
             return 0

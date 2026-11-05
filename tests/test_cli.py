@@ -9,6 +9,8 @@ from mediagrab.cli import parse_command
     ("args", "expected"),
     [
         ([], ("activate", None)),
+        (["--help"], ("help", None)),
+        (["-h"], ("help", None)),
         (["--list"], ("list", None)),
         (["--status"], ("status", None)),
         (["--add-url", "https://example.test/video.mp4"], ("add-url", "https://example.test/video.mp4")),

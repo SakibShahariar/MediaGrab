@@ -8,7 +8,7 @@ from __future__ import annotations
 from mediagrab.url_utils import is_valid_http_url
 
 _USAGE = (
-    "Usage: mediagrab [--add-url|--add-candidate HTTP(S)_URL] | "
+    "Usage: mediagrab [--help] | [--add-url|--add-candidate HTTP(S)_URL] | "
     "[--list|--status] | [--pause|--resume|--retry|--cancel QUEUE_ID]"
 )
 
@@ -17,6 +17,8 @@ def parse_command(args: list[str]) -> tuple[str, str | None]:
     """Parse one supported CLI operation and validate its argument."""
     if not args:
         return "activate", None
+    if len(args) == 1 and args[0] in {"--help", "-h"}:
+        return "help", None
     if len(args) == 1 and args[0] in {"--list", "--status"}:
         return args[0][2:], None
     if len(args) != 2:
