@@ -55,7 +55,7 @@ def test_ffmpeg_rejects_invalid_selected_stream_index() -> None:
 
 
 def test_dashjs_real_world_template_manifest_shape() -> None:
-    # Adapted from Dash Industry Forum dash.js samples/cmcd/mpds/basic-cmcd-config.mpd.
+    # Adapted from BSD-licensed Dash Industry Forum dash.js: https://github.com/Dash-Industry-Forum/dash.js/blob/development/samples/cmcd/mpds/basic-cmcd-config.mpd
     manifest = """<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static">
       <BaseURL>https://cdn.example/bbb/</BaseURL>
       <Period>
@@ -82,7 +82,7 @@ def test_dashjs_real_world_template_manifest_shape() -> None:
 
 
 def test_dashjs_real_world_segment_list_and_template_mix() -> None:
-    # Adapted from Dash Industry Forum dash.js test/functional/content/gap/video_gap_mid_period.mpd.
+    # Adapted from BSD-licensed Dash Industry Forum dash.js: https://github.com/Dash-Industry-Forum/dash.js/blob/development/test/functional/content/gap/video_gap_mid_period.mpd
     manifest = """<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static">
       <BaseURL>https://cdn.example/akamai/bbb_30fps/</BaseURL>
       <Period>
