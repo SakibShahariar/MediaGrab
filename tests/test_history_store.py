@@ -38,6 +38,7 @@ def test_history_survives_restart_and_records_timestamp(tmp_path: Path) -> None:
     assert restored[0]["size"] == 123
     assert restored[0]["outcome"] == "Completed"
     assert restored[0]["checksum_status"] == "not-requested"
+    assert restored[0]["category"] == "Uncategorized"
     assert restored[0]["timestamp"]
     assert path.read_text(encoding="utf-8").endswith("\n")
     assert path.stat().st_mode & 0o077 == 0
@@ -105,3 +106,11 @@ def test_history_redacts_signed_url_and_can_be_cleared(tmp_path: Path) -> None:
     clear_history(path)
     assert load_history(path) == []
     assert not path.exists()
+
+
+def test_history_persists_category_and_migrates_legacy_records(tmp_path: Path) -> None:
+    path = tmp_path / "history.json"
+    append_history({**_entry(), "category": "HLS/DASH stream"}, path)
+    assert load_history(path)[0]["category"] == "HLS/DASH stream"
+    path.write_text(json.dumps([{**_entry(), "category": 42}]), encoding="utf-8")
+    assert load_history(path)[0]["category"] == "Uncategorized"
