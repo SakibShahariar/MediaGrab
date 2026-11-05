@@ -43,6 +43,7 @@ The current suite is site-independent and uses fixtures, local HTTP servers, and
 - `tests/test_media_inspector.py`: local-server manifest fetches, response-size and timeout limits, HTTP errors, and redirect validation.
 - `tests/test_task_factory.py`: routing HLS/DASH manifests to the stream adapter and direct/unknown URLs to the HTTP downloader.
 - `tests/test_media_stream.py`: FFmpeg command construction, stream finalization, cancellation, error handling, and optional external tracks using a fake process.
+- `tests/test_dash_representation_selection.py` and `tests/test_dash_media_stream_integration.py`: single-period representation ordering, FFmpeg stream mapping, and an optional generated DASH SegmentTemplate download that verifies the selected output resolution.
 - `tests/test_downloader.py`: local HTTP transfers, resume behavior, pause/cancel, malformed responses, and safe finalization.
 - `tests/test_native_host.py` and `tests/test_browser_popup.py`: native-messaging validation and static browser-extension contracts.
 - `tests/browser-extension-background.test.cjs`: Node-based Firefox/Chromium background API harness covering response classification, per-tab deduplication, navigation cleanup, permission revocation, and context-menu handoff.
