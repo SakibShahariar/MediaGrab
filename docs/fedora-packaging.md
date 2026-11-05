@@ -1,37 +1,42 @@
-# Fedora packaging status
+# Fedora packaging
 
-MediaGrab targets Linux desktops and is being prepared for Fedora as the first packaged distribution.
+Fedora is the first target for native Linux packaging. The repository now contains an RPM spec and AppStream metadata; the Fedora CI workflow builds the RPM in a Fedora container.
 
-## Desktop integration
+## Package contents
 
-The repository now contains:
+- Python application and entry points: `mediagrab`, `mediagrab-native-host`, and `mediagrab-inspect`
+- GNOME desktop launcher and scalable application icon
+- AppStream metadata
+- Per-user browser native-messaging installer
+- GPL-3.0-or-later license
 
-- Desktop ID and application ID: `io.github.SakibShahariar.MediaGrab`.
-- Desktop launcher: `data/io.github.SakibShahariar.MediaGrab.desktop`.
-- Scalable application icon: `data/icons/hicolor/scalable/apps/io.github.SakibShahariar.MediaGrab.svg`.
+The RPM depends on GTK 4, libadwaita, and PyGObject. FFmpeg is recommended for HLS/DASH stream-copy downloads; Fedora's `ffmpeg-free` package may not support every codec or container combination.
 
-The launcher starts the installed `mediagrab` entry point. The native-messaging registration remains a separate per-user step; see [Browser Native Host Installer](browser-native-host-installer.md).
+## Build the RPM
 
-## Runtime requirements
+The spec expects a source archive matching the `v0.1.0` tag:
 
-The Fedora package will need the system GTK stack and FFmpeg:
+```fish
+mkdir -p ~/rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+tar --exclude=.git --transform='s,^,MediaGrab-0.1.0/,' \
+  -czf ~/rpmbuild/SOURCES/mediagrab-0.1.0.tar.gz .
+cp packaging/rpm/mediagrab.spec ~/rpmbuild/SPECS/
+rpmbuild -ba --define "_topdir $HOME/rpmbuild" ~/rpmbuild/SPECS/mediagrab.spec
+```
 
-- Python 3.11 or newer.
-- GTK 4.
-- libadwaita.
-- PyGObject / GObject introspection.
-- FFmpeg (required for HLS/DASH stream-copy tasks; direct HTTP downloads use the native downloader).
+Install the generated noarch RPM with DNF. The CI workflow performs the same build and validates the desktop entry and AppStream metadata. A successful container build is not a substitute for installation and launch testing on a real Fedora GNOME session.
 
-The Python project currently has no third-party runtime dependencies declared in `pyproject.toml`; GTK bindings and FFmpeg are system dependencies.
+## Browser native-messaging registration
 
-## RPM status
+Registration remains per-user. After installing the RPM, run the included installer:
 
-An installable RPM specification is intentionally deferred. The project metadata currently declares `license = { text = "TBD" }` and there is no project license file. RPM and AppStream metadata must contain an accurate project license expression. The license must not be guessed or silently changed as part of packaging.
+```fish
+python3 /usr/share/mediagrab/install_native_host.py --browser firefox
+python3 /usr/share/mediagrab/install_native_host.py --browser chromium --extension-id YOUR_REAL_EXTENSION_ID
+```
 
-Once the project license is selected, the RPM can package the Python entry points, desktop file, icon, AppStream metadata, and native-host installer. The spec should be built and installed in a Fedora CI/container environment before the Fedora installation issue is closed.
+Use the actual extension ID shown by the installed Chromium-family browser. The installer writes the registration under the user's browser configuration directory; it does not enable private-window permissions.
 
-## Flatpak evaluation
+## Flatpak
 
-Flatpak is not a drop-in replacement for the RPM. The app needs network access, GTK/libadwaita, and FFmpeg. Browser native messaging is the difficult integration boundary: the browser runs outside the app sandbox, so a host executable and registration manifest must be installed where the host browser can access them. A Flatpak-only installation cannot assume that the browser can execute a binary inside the sandbox. A separate host-side installer or portal-based bridge would be required and needs independent validation.
-
-For now, native RPM packaging is the first target; Flatpak remains an evaluation item rather than a claimed supported format.
+Flatpak is not currently packaged. Browser native messaging needs a host executable and registration manifest visible to the unsandboxed browser, so a Flatpak-only install cannot assume that the browser can execute a binary inside the app sandbox. Treat Flatpak as a separate integration project rather than a supported installation method.

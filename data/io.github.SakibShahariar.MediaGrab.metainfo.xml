@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.SakibShahariar.MediaGrab</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>MediaGrab</name>
+  <summary>Download manager with browser media capture</summary>
+  <description>
+    <p>MediaGrab is a native Linux download manager for direct HTTP(S) downloads and browser-captured media links.</p>
+    <p>It can inspect HLS and DASH manifests and use FFmpeg for supported stream-copy downloads. It does not bypass DRM or access controls.</p>
+  </description>
+  <launchable type="desktop-id">io.github.SakibShahariar.MediaGrab.desktop</launchable>
+  <url type="homepage">https://github.com/SakibShahariar/MediaGrab</url>
+  <provides>
+    <binary>mediagrab</binary>
+    <binary>mediagrab-native-host</binary>
+    <binary>mediagrab-inspect</binary>
+  </provides>
+  <categories>
+    <category>AudioVideo</category>
+    <category>Network</category>
+  </categories>
+</component>
