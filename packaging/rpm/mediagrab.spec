@@ -28,7 +28,7 @@ stream downloads.
 %autosetup -n MediaGrab-%{version}
 
 %generate_buildrequires
-%pyproject_buildrequires -t
+%pyproject_buildrequires
 
 %build
 %pyproject_wheel
