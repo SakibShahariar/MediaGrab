@@ -49,6 +49,7 @@ def load_history(path: str | Path | None = None) -> list[dict[str, Any]]:
             "size": size,
             "outcome": item["outcome"],
             "timestamp": item["timestamp"],
+            "category": item.get("category") if isinstance(item.get("category"), str) else "Uncategorized",
             "checksum_status": (
                 item.get("checksum_status")
                 if item.get("checksum_status") in _CHECKSUM_STATES
@@ -110,7 +111,7 @@ def append_history(entry: dict[str, Any], path: str | Path | None = None) -> Non
 
 def make_history_entry(
     *, source_url: str, filename: str, destination: str, size: int | None,
-    outcome: str, checksum_status: str = "not-requested"
+    outcome: str, checksum_status: str = "not-requested", category: str = "Uncategorized"
 ) -> dict[str, Any]:
     """Create a timestamped record without retaining transfer credentials."""
     return {
@@ -120,6 +121,7 @@ def make_history_entry(
         "size": size,
         "outcome": outcome,
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "category": category,
         "checksum_status": checksum_status,
     }
 
