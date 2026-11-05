@@ -52,6 +52,9 @@ appstreamcli validate --no-net data/io.github.SakibShahariar.MediaGrab.metainfo.
 PYTHONPATH=app python3 -m pytest -q
 
 %files -f %{pyproject_files}
+%{_bindir}/mediagrab
+%{_bindir}/mediagrab-inspect
+%{_bindir}/mediagrab-native-host
 %license LICENSE
 %doc README.md docs/fedora-packaging.md
 %{_datadir}/applications/io.github.SakibShahariar.MediaGrab.desktop
