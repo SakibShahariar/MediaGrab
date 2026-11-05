@@ -92,7 +92,7 @@ Persistent repository-specific record of commit-level CI checks and red-cross in
 
 Final observed result: the Fedora RPM workflow built the package successfully, validated the desktop/AppStream metadata, ran the Python tests, and listed the RPM contents. Real Fedora installation and GNOME launch validation remain outside CI.
 
-## Checkpoint
+## Previous checkpoint (superseded)
 
 - Repository: `SakibShahariar/MediaGrab`
 - Default branch: `main`
@@ -107,3 +107,4 @@ Final observed result: the Fedora RPM workflow built the package successfully, v
 | 2026-11-02 | Initial checkpoint: `96dc9c81cfefec02d4bddea5693de9cccc35a677` | Baseline established. |
 | 2026-11-05 | `96dc9c8..2097745` (27 commits) | 25 direct green/red runs reviewed; one regression diagnosed and fixed; one exact-SHA run unavailable but descendant tree green. |
 | 2026-11-05 | `2097745..d9cf5fe` (5 commits) | Python matrix green throughout; three Fedora RPM failures were diagnosed and fixed in sequence; latest Fedora RPM build is green. |
+| 2026-11-05 | `d9cf5fe..090ed3c` (5 commits) | All five commits have directly observed green Python and Fedora RPM workflows; issues #41 and #42 closed. |

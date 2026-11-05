@@ -104,3 +104,40 @@ def test_discovery_failure_is_non_fatal(monkeypatch):
 
     monkeypatch.setattr(extractors, "entry_points", fail)
     assert extractors.discover_media_candidates("https://example.test/watch/1") == []
+
+
+def test_plugin_output_is_bounded_per_plugin(monkeypatch):
+    class ManyCandidates:
+        capabilities = frozenset({extractors.CAPABILITY_CANDIDATE_EXPANSION})
+
+        def supports(self, _url):
+            return True
+
+        def extract(self, _url):
+            return [
+                extractors.ExtractedMedia(f"https://cdn.example.test/{index}.mp4")
+                for index in range(extractors.MAX_CANDIDATES_PER_PLUGIN + 20)
+            ]
+
+    monkeypatch.setattr(
+        extractors,
+        "entry_points",
+        lambda **_kwargs: [FakeEntryPoint("many", ManyCandidates)],
+    )
+
+    result = extractors.discover_media_candidates("https://example.test/watch/1")
+
+    assert len(result) == extractors.MAX_CANDIDATES_PER_PLUGIN
+
+
+def test_extractor_worker_slots_are_bounded_and_nonblocking():
+    acquired = [
+        extractors.reserve_extractor_worker()
+        for _ in range(extractors.MAX_CONCURRENT_EXTRACTOR_RUNS + 1)
+    ]
+    try:
+        assert acquired == [True] * extractors.MAX_CONCURRENT_EXTRACTOR_RUNS + [False]
+    finally:
+        for reserved in acquired:
+            if reserved:
+                extractors.release_extractor_worker()

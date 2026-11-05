@@ -42,7 +42,12 @@ from mediagrab.diagnostics import configure_logging, get_logger, log_event, read
 from mediagrab.url_utils import is_valid_http_url, redact_url
 from mediagrab.cli import HELP_TEXT, parse_command
 from mediagrab.dbus_api import register_dbus_api
-from mediagrab.extractors import ExtractedMedia, discover_media_candidates
+from mediagrab.extractors import (
+    ExtractedMedia,
+    discover_media_candidates,
+    release_extractor_worker,
+    reserve_extractor_worker,
+)
 from mediagrab.shortcuts import COMMAND_PALETTE_ACTIONS, SHORTCUTS
 
 
@@ -1189,19 +1194,28 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         self._persist_queue()
         log_event(_LOG, "capture_candidate_added", url=url)
         self.toast_overlay.add_toast(Adw.Toast.new("Media candidate added for review."))
-        threading.Thread(
-            target=self._discover_plugin_candidates,
-            args=(url,),
-            daemon=True,
-            name="mediagrab-site-extractors",
-        ).start()
+        if reserve_extractor_worker():
+            worker = threading.Thread(
+                target=self._discover_plugin_candidates,
+                args=(url,),
+                daemon=True,
+                name="mediagrab-site-extractors",
+            )
+            try:
+                worker.start()
+            except RuntimeError:
+                release_extractor_worker()
+                _LOG.warning("Could not start the site extractor worker.")
         return True
 
     def _discover_plugin_candidates(self, source_url: str) -> None:
-        """Run optional site extractors off the GTK thread."""
-        candidates = discover_media_candidates(source_url)
-        if candidates:
-            GLib.idle_add(self._append_extracted_candidates, candidates)
+        """Run optional site extractors off the GTK thread in a bounded worker slot."""
+        try:
+            candidates = discover_media_candidates(source_url)
+            if candidates:
+                GLib.idle_add(self._append_extracted_candidates, candidates)
+        finally:
+            release_extractor_worker()
 
     def _append_extracted_candidates(self, candidates: list[ExtractedMedia]) -> bool:
         added = 0
