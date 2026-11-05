@@ -19,7 +19,7 @@ The spec expects a source archive matching the `v0.1.0` tag:
 ```fish
 mkdir -p ~/rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
 tar --exclude=.git --transform='s,^,MediaGrab-0.1.0/,' \
-  -czf ~/rpmbuild/SOURCES/mediagrab-0.1.0.tar.gz .
+  -czf ~/rpmbuild/SOURCES/v0.1.0.tar.gz .
 cp packaging/rpm/mediagrab.spec ~/rpmbuild/SPECS/
 rpmbuild -ba --define "_topdir $HOME/rpmbuild" ~/rpmbuild/SPECS/mediagrab.spec
 ```
