@@ -36,6 +36,7 @@ from mediagrab.duplicate_preferences import (
     clear_remembered_duplicate_action,
 )
 from mediagrab.media_stream import MediaStreamTask
+from mediagrab.quality_preferences import load_preferred_video_height, preferred_quality_index, save_preferred_video_height
 from mediagrab.settings_store import export_settings, import_settings, load_settings, restore_settings_backup, save_settings
 from mediagrab.diagnostics import configure_logging, get_logger, log_event, read_diagnostics
 from mediagrab.url_utils import is_valid_http_url, redact_url
@@ -1016,10 +1017,12 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             return GLib.SOURCE_REMOVE
 
         choices: list[tuple[str, str]] = [("Use original manifest (FFmpeg chooses streams)", original_url)]
+        choice_heights: list[int | None] = [None]
         if result.kind is MediaKind.HLS:
             variants = sorted(result.variants, key=lambda item: (item.height or 0, item.bandwidth or 0))
             for variant in variants:
                 choices.append((self._variant_label(variant), variant.url))
+                choice_heights.append(variant.height)
         elif result.kind is MediaKind.DASH:
             # A representation is independently downloadable only when the
             # manifest declares a direct/inherited BaseURL. SegmentTemplate,
@@ -1034,6 +1037,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                         format_dash_representation_label(representation),
                         representation.url,
                     ))
+                    choice_heights.append(representation.height)
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         for side in ("top", "bottom", "start", "end"):
@@ -1041,7 +1045,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         if len(choices) > 1:
             dropdown = Gtk.DropDown(model=Gtk.StringList.new([label for label, _url in choices]))
             set_accessible_label(dropdown, "Download quality")
-            dropdown.set_selected(0)
+            dropdown.set_selected(preferred_quality_index(choice_heights, load_preferred_video_height()))
             content.append(Gtk.Label(label="Download choice", xalign=0))
             content.append(dropdown)
         else:
@@ -1126,6 +1130,13 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                     chosen_video, audio_url=audio_url, subtitle_url=subtitle_url,
                     output_format=output_format,
                 ):
+                    selected_height = choice_heights[index]
+                    if selected_height is not None:
+                        try:
+                            save_preferred_video_height(selected_height)
+                        except (OSError, ValueError) as exc:
+                            _LOG.warning("Could not save preferred video quality: %s", exc)
+                            self.toast_overlay.add_toast(Adw.Toast.new("Download added, but the quality preference could not be saved."))
                     self.dismiss_candidate_by_url(original_url)
 
         audio_choices = [item for item in result.renditions if item.kind == "audio" and item.url]
