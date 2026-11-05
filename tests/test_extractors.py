@@ -141,3 +141,33 @@ def test_extractor_worker_slots_are_bounded_and_nonblocking():
         for reserved in acquired:
             if reserved:
                 extractors.release_extractor_worker()
+
+def test_plugin_output_is_bounded_across_all_plugins(monkeypatch):
+    class ManyCandidates:
+        capabilities = frozenset({extractors.CAPABILITY_CANDIDATE_EXPANSION})
+
+        def __init__(self, plugin_index):
+            self.plugin_index = plugin_index
+
+        def supports(self, _url):
+            return True
+
+        def extract(self, _url):
+            return [
+                extractors.ExtractedMedia(
+                    f"https://cdn{self.plugin_index}.example.test/{index}.mp4"
+                )
+                for index in range(extractors.MAX_CANDIDATES_PER_PLUGIN + 10)
+            ]
+
+    plugins = [
+        FakeEntryPoint(f"many-{index}", lambda index=index: ManyCandidates(index))
+        for index in range(3)
+    ]
+    monkeypatch.setattr(extractors, "entry_points", lambda **_kwargs: plugins)
+
+    result = extractors.discover_media_candidates("https://example.test/watch/1")
+
+    assert len(result) == extractors.MAX_CANDIDATES_TOTAL
+    assert len({item.url for item in result}) == len(result)
+

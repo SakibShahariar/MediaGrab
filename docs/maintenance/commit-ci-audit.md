@@ -108,3 +108,12 @@ Final observed result: the Fedora RPM workflow built the package successfully, v
 | 2026-11-05 | `96dc9c8..2097745` (27 commits) | 25 direct green/red runs reviewed; one regression diagnosed and fixed; one exact-SHA run unavailable but descendant tree green. |
 | 2026-11-05 | `2097745..d9cf5fe` (5 commits) | Python matrix green throughout; three Fedora RPM failures were diagnosed and fixed in sequence; latest Fedora RPM build is green. |
 | 2026-11-05 | `d9cf5fe..090ed3c` (5 commits) | All five commits have directly observed green Python and Fedora RPM workflows; issues #41 and #42 closed. |
+
+## Audited range after the 2026-11-05 checkpoint (continued)
+
+| Commit SHA | Subject | Python CI | Fedora RPM CI |
+|---|---|---|---|
+| `e23e74e8810b41c649a7602575d557f24b701339` | fix(plugins): bound extractor workers and output | green — [42074173638](https://github.com/SakibShahariar/MediaGrab/actions/runs/42074173638) | green — [42074173448](https://github.com/SakibShahariar/MediaGrab/actions/runs/42074173448) |
+
+The extractor hardening commit's two workflows completed successfully. The tests added in this follow-up exercise the global candidate ceiling across multiple independently loaded plugins, in addition to the existing per-plugin ceiling and worker-slot tests. Exact-SHA CI results for this follow-up will be recorded after the runs complete.
+
