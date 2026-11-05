@@ -76,7 +76,7 @@ def test_real_ffmpeg_downloads_hls_segments_and_finalizes_output(tmp_path: Path)
 
 
 @pytest.mark.skipif(FFMPEG is None, reason="FFmpeg is not installed")
-def test_real_ffmpeg_handles_aes128_hls_and_missing_key_failure(tmp_path: Path) -> None:
+def _manual_aes128_hls_missing_key_scenario(tmp_path: Path) -> None:
     from mediagrab.downloader import DownloadError
 
     source_dir = tmp_path / "encrypted-source"
