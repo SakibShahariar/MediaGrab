@@ -78,7 +78,7 @@ mediagrab-inspect 'https://example.test/path/master.m3u8'
 mediagrab-inspect 'https://example.test/path/manifest.mpd' --timeout 20
 ```
 
-The report shows available HLS resolutions and bitrates, alternate audio/subtitle declarations, or DASH representation metadata. In the desktop quality picker, optional external HLS audio and subtitle playlists can be selected and muxed into the resulting MKV when FFmpeg supports those tracks. Manifest fetches are limited to 4 MiB and use a finite timeout. Query strings are omitted from the report because they may contain signed credentials. Actual downloads still require the original URL and may fail if authentication, DRM, or site-specific behavior is involved.
+The report shows available HLS resolutions and bitrates, alternate audio/subtitle declarations, or DASH representation metadata. In the desktop quality picker, optional external HLS audio and subtitle playlists can be selected and muxed into the resulting MKV when FFmpeg supports those tracks. The picker remembers the last selected declared video resolution and chooses the closest available option at or below it on the next manifest inspection. Manifest fetches are limited to 4 MiB and use a finite timeout. Query strings are omitted from the report because they may contain signed credentials. Actual downloads still require the original URL and may fail if authentication, DRM, or site-specific behavior is involved.
 
 ## Next milestones
 
