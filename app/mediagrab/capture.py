@@ -152,7 +152,9 @@ def parse_dash_representations(
 
     mpd_base = find_base(root, manifest_url)
     result: list[DASHRepresentation] = []
-    for period in root:
+    periods = [child for child in root if _xml_local_name(child.tag) == "Period"]
+    single_period = len(periods) == 1
+    for period in periods:
         if _xml_local_name(period.tag) != "Period":
             continue
         period_base = find_base(period, mpd_base)
@@ -199,7 +201,7 @@ def parse_dash_representations(
                         time_shift_buffer_depth=time_shift_buffer_depth,
                         minimum_update_period=minimum_update_period,
                         suggested_presentation_delay=suggested_presentation_delay,
-                        stream_index=len(result),
+                        stream_index=len(result) if single_period else None,
                     )
                 )
     return result
