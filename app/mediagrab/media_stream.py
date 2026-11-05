@@ -12,7 +12,6 @@ from urllib.parse import urlparse
 
 from mediagrab.checksum import ChecksumMismatchError, parse_expected_checksum, verify_file
 from mediagrab.downloader import DownloadError, DownloadProgress, filename_from_url, unique_output_path
-from mediagrab.process_output import iter_process_output
 
 ProgressCallback = Callable[[DownloadProgress], None]
 _OUTPUT_FORMATS = {"mkv": "matroska", "mp4": "mp4"}
@@ -174,7 +173,16 @@ class MediaStreamTask:
                 errors="replace", bufsize=1,
             )
             assert process.stdout is not None
-            for line in iter_process_output(process.stdout, self._cancel):
+            for line in process.stdout:
+                if self._cancel.is_set():
+                    process.terminate()
+                    try:
+                        process.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait()
+                    self._set_state("cancelled")
+                    raise DownloadError("Stream download cancelled")
                 key, separator, value = line.strip().partition("=")
                 if separator and key == "total_size" and value.isdigit() and on_progress:
                     current = int(value)
@@ -182,9 +190,6 @@ class MediaStreamTask:
                     speed = max(0, current - last_bytes) / max(now - last_time, 0.001)
                     on_progress(DownloadProgress(current, None, speed, "downloading"))
                     last_bytes, last_time = current, now
-            if self._cancel.is_set():
-                self._set_state("cancelled")
-                raise DownloadError("Stream download cancelled")
             return_code = process.wait()
             if self._cancel.is_set():
                 self._set_state("cancelled")
