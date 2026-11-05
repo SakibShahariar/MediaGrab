@@ -1048,10 +1048,10 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 choice_heights.append(variant.height)
                 choice_dash_stream_indices.append(None)
         elif result.kind is MediaKind.DASH:
-            # A representation is independently downloadable only when the
-            # manifest declares a direct/inherited BaseURL. SegmentTemplate,
-            # SegmentTimeline, and SegmentList entries need a segment-aware
-            # downloader and must not be presented as direct file URLs.
+            # Direct BaseURL representations can be queued directly. For
+            # segment-addressed representations, keep the original MPD URL
+            # and ask FFmpeg to map the matching manifest-order stream.
+            # Multi-period and dynamic MPDs do not get explicit choices.
             for representation in sorted(
                 result.representations,
                 key=lambda item: (item.height or 0, item.bandwidth or 0),
