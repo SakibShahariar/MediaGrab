@@ -50,6 +50,7 @@ class DASHRepresentation:
     time_shift_buffer_depth: str | None = None
     minimum_update_period: str | None = None
     suggested_presentation_delay: str | None = None
+    stream_index: int | None = None
 
 
 @dataclass(frozen=True)
@@ -198,6 +199,7 @@ def parse_dash_representations(
                         time_shift_buffer_depth=time_shift_buffer_depth,
                         minimum_update_period=minimum_update_period,
                         suggested_presentation_delay=suggested_presentation_delay,
+                        stream_index=len(result),
                     )
                 )
     return result
