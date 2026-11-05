@@ -35,7 +35,7 @@ Direct HTTP(S) downloads can be paused and resumed; pause is cooperative and may
 - HTTP(S) transfers with safe filenames, automatic numbered names for collisions, partial files, validator-aware resume, cooperative pause/resume, cancellation, and atomic finalization.
 - Optional FFmpeg-backed HLS/DASH downloads with selectable MKV (default) or MP4 output, stream-copy remuxing, progress and cancellation. Direct media files keep their original format.
 - Media classification, HLS variant and alternate audio/subtitle parsing, and DASH representation metadata extraction.
-- **Manifest inspection and track selection:** fetches bounded HLS/DASH manifests, lists HLS variants and alternate audio/subtitle playlists, and offers optional external audio/subtitle selection. Selected streams are muxed into MKV with FFmpeg stream copy; track choices survive queue recovery and retry.
+- **Manifest inspection and track selection:** fetches bounded HLS/DASH manifests, lists HLS variants and alternate audio/subtitle playlists, and offers optional external audio/subtitle selection. Selected streams are muxed into the chosen MKV or MP4 container with FFmpeg stream copy; track choices survive queue recovery and retry.
 - Browser popup scans page-visible resources and can optionally observe media response URLs and Content-Type headers across HTTP(S) sites after explicit all-sites permission. Candidates stay in browser-session memory, are deduplicated per tab, and are reviewed before handoff.
 - Structured JSONL diagnostics record download and capture lifecycle events, redact sensitive values, rotate within a bounded size, and use private file permissions. Verbosity is configurable and redacted logs can be copied from the app.
 - Automated tests run on Python 3.11–3.14.

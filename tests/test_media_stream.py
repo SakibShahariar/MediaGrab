@@ -254,3 +254,19 @@ def test_invalid_output_container_is_rejected(tmp_path: Path) -> None:
             "https://cdn.example/master.m3u8", tmp_path,
             ffmpeg_path="/fake/ffmpeg", output_format="avi",
         )
+
+
+def test_mp4_muxing_failure_explains_container_compatibility(tmp_path: Path, monkeypatch) -> None:
+    task = MediaStreamTask(
+        "https://cdn.example/master.m3u8", tmp_path,
+        ffmpeg_path="/fake/ffmpeg", output_format="mp4",
+    )
+    monkeypatch.setattr(
+        "mediagrab.media_stream.subprocess.Popen",
+        lambda *_args, **_kwargs: FakeProcess("", 1),
+    )
+
+    with pytest.raises(DownloadError, match="chosen MP4 container") as error:
+        task.run()
+
+    assert "does not re-encode streams" in str(error.value)
