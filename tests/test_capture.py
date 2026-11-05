@@ -261,3 +261,33 @@ def test_dash_segment_list_and_representation_template_remain_unresolved() -> No
 
     assert [item.id for item in reps] == ["list", "template"]
     assert all(item.url is None for item in reps)
+
+
+def test_dash_segment_base_with_baseurl_is_not_exposed_as_direct_file() -> None:
+    manifest = """<MPD><Period><AdaptationSet mimeType="video/mp4">
+      <Representation id="indexed" bandwidth="1400000">
+        <BaseURL>indexed-video.mp4</BaseURL>
+        <SegmentBase indexRange="0-999">
+          <Initialization range="0-699"/>
+        </SegmentBase>
+      </Representation>
+    </AdaptationSet></Period></MPD>"""
+    reps = parse_dash_representations("https://cdn.example/movie/manifest.mpd", manifest)
+
+    assert len(reps) == 1
+    assert reps[0].id == "indexed"
+    assert reps[0].url is None
+
+
+def test_dash_inherited_segment_template_suppresses_representation_baseurl() -> None:
+    manifest = """<MPD><Period><AdaptationSet mimeType="video/mp4">
+      <SegmentTemplate media="chunk-$Number$.m4s" initialization="init.mp4"/>
+      <Representation id="video" bandwidth="1800000">
+        <BaseURL>video/</BaseURL>
+      </Representation>
+    </AdaptationSet></Period></MPD>"""
+    reps = parse_dash_representations("https://cdn.example/live/manifest.mpd", manifest)
+
+    assert len(reps) == 1
+    assert reps[0].id == "video"
+    assert reps[0].url is None

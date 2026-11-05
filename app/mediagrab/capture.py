@@ -156,11 +156,22 @@ def parse_dash_representations(
                     ),
                     None,
                 )
+                # A BaseURL inside a segment-addressed representation identifies
+                # the resource used by the DASH segment engine, not a standalone
+                # media file. Do not expose it as a directly downloadable choice.
+                segment_addressing = {"SegmentBase", "SegmentList", "SegmentTemplate"}
+                has_segment_addressing = any(
+                    _xml_local_name(child.tag) in segment_addressing
+                    for parent in (root, period, adaptation, representation)
+                    for child in parent
+                )
                 attrs = representation.attrib
                 result.append(
                     DASHRepresentation(
                         id=attrs.get("id"),
-                        url=urljoin(adaptation_base, own_base) if own_base else None,
+                        url=urljoin(adaptation_base, own_base)
+                        if own_base and not has_segment_addressing
+                        else None,
                         bandwidth=_nonnegative_int(attrs.get("bandwidth")),
                         width=_nonnegative_int(attrs.get("width")),
                         height=_nonnegative_int(attrs.get("height")),
