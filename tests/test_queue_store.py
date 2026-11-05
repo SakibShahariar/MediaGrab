@@ -217,3 +217,18 @@ def test_interrupted_history_marker_survives_queue_persistence(tmp_path: Path) -
     }
     save_queue([entry], path)
     assert load_queue(path) == [entry]
+
+
+def test_output_format_survives_queue_persistence_and_invalid_values_are_dropped(tmp_path: Path) -> None:
+    path = tmp_path / "queue.json"
+    save_queue([
+        {"url": "https://example.test/video.m3u8", "output_format": "mp4"},
+        {"url": "https://example.test/legacy.m3u8"},
+        {"url": "https://example.test/invalid.m3u8", "output_format": "avi"},
+    ], path)
+
+    assert load_queue(path) == [
+        {"url": "https://example.test/video.m3u8", "output_format": "mp4"},
+        {"url": "https://example.test/legacy.m3u8"},
+        {"url": "https://example.test/invalid.m3u8"},
+    ]

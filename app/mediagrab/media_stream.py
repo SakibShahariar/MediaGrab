@@ -14,6 +14,7 @@ from mediagrab.checksum import ChecksumMismatchError, parse_expected_checksum, v
 from mediagrab.downloader import DownloadError, DownloadProgress, filename_from_url, unique_output_path
 
 ProgressCallback = Callable[[DownloadProgress], None]
+_OUTPUT_FORMATS = {"mkv": "matroska", "mp4": "mp4"}
 
 
 def _validate_http_url(url: str, label: str = "URL") -> None:
@@ -31,8 +32,11 @@ def build_ffmpeg_command(
     *,
     audio_url: str | None = None,
     subtitle_url: str | None = None,
+    output_format: str = "mkv",
 ) -> list[str]:
-    """Build a stream-copy command; optional tracks are explicit separate inputs."""
+    """Build a stream-copy command for a supported output container."""
+    if output_format not in _OUTPUT_FORMATS:
+        raise ValueError("output_format must be 'mkv' or 'mp4'")
     _validate_http_url(video_url, "Video URL")
     if audio_url:
         _validate_http_url(audio_url, "Audio URL")
@@ -71,7 +75,7 @@ def build_ffmpeg_command(
         else:
             command.extend(["-map", f"{subtitle_index}:s:0?"])
 
-    command.extend(["-c", "copy", "-f", "matroska", "-n", str(temporary_output)])
+    command.extend(["-c", "copy", "-f", _OUTPUT_FORMATS[output_format], "-n", str(temporary_output)])
     return command
 
 
@@ -87,8 +91,11 @@ class MediaStreamTask:
         subtitle_url: str | None = None,
         ffmpeg_path: str | None = None,
         expected_checksum: str | None = None,
+        output_format: str = "mkv",
     ) -> None:
         _validate_http_url(url)
+        if output_format not in _OUTPUT_FORMATS:
+            raise ValueError("output_format must be 'mkv' or 'mp4'")
         if audio_url:
             _validate_http_url(audio_url, "Audio URL")
         if subtitle_url:
@@ -100,6 +107,7 @@ class MediaStreamTask:
         if expected_checksum is not None:
             parse_expected_checksum(expected_checksum)
         self.expected_checksum = expected_checksum
+        self.output_format = output_format
         self.ffmpeg_path = ffmpeg_path or shutil.which("ffmpeg")
         self._cancel = threading.Event()
         self._lock = threading.Lock()
@@ -129,8 +137,8 @@ class MediaStreamTask:
         self.destination.mkdir(parents=True, exist_ok=True)
         original = filename_from_url(self.url)
         stem = Path(original).stem or "media"
-        target = unique_output_path(self.destination, f"{stem}.mkv")
-        temporary = self.destination / f".{target.stem}.mediagrab-part.mkv"
+        target = unique_output_path(self.destination, f"{stem}.{self.output_format}")
+        temporary = self.destination / f".{target.stem}.mediagrab-part.{self.output_format}"
         if temporary.exists():
             try:
                 temporary.unlink()
@@ -141,6 +149,7 @@ class MediaStreamTask:
         command = build_ffmpeg_command(
             self.ffmpeg_path, self.url, temporary,
             audio_url=self.audio_url, subtitle_url=self.subtitle_url,
+            output_format=self.output_format,
         )
         self._set_state("downloading")
         started = time.monotonic()
@@ -180,7 +189,8 @@ class MediaStreamTask:
                 raise DownloadError(
                     f"FFmpeg could not download this stream (exit code {return_code}). "
                     "The URL may have expired, the stream may require browser authentication, "
-                    "or the format may be unsupported."
+                    f"or one or more selected streams may not support the chosen {self.output_format.upper()} container. "
+                    "MediaGrab does not re-encode streams to force compatibility."
                 )
             if not temporary.is_file() or temporary.stat().st_size == 0:
                 self._set_state("failed")

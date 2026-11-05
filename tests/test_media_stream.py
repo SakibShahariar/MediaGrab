@@ -212,3 +212,45 @@ def test_stream_checksum_mismatch_never_finalizes_output(tmp_path: Path, monkeyp
     assert task.state == "failed"
     assert not (tmp_path / "master.mkv").exists()
     assert not (tmp_path / ".master.mediagrab-part.mkv").exists()
+
+
+@pytest.mark.parametrize(("output_format", "muxer"), [("mkv", "matroska"), ("mp4", "mp4")])
+def test_build_command_uses_selected_output_container(output_format: str, muxer: str) -> None:
+    from mediagrab.media_stream import build_ffmpeg_command
+
+    command = build_ffmpeg_command(
+        "/fake/ffmpeg", "https://cdn.example/video.m3u8",
+        f"/tmp/out.{output_format}", output_format=output_format,
+    )
+
+    assert command[command.index("-f") + 1] == muxer
+    assert command[-1] == f"/tmp/out.{output_format}"
+
+
+def test_mp4_stream_uses_matching_final_and_temporary_names(tmp_path: Path, monkeypatch) -> None:
+    task = MediaStreamTask(
+        "https://cdn.example/master.m3u8", tmp_path,
+        ffmpeg_path="/fake/ffmpeg", output_format="mp4",
+    )
+    captured = {}
+
+    def popen(command, **kwargs):
+        captured["command"] = command
+        Path(command[-1]).write_bytes(b"fake-mp4")
+        return FakeProcess("progress=end\\n", 0)
+
+    monkeypatch.setattr("mediagrab.media_stream.subprocess.Popen", popen)
+    target = task.run()
+
+    assert target.name == "master.mp4"
+    assert target.read_bytes() == b"fake-mp4"
+    assert captured["command"][captured["command"].index("-f") + 1] == "mp4"
+    assert captured["command"][-1].endswith(".mediagrab-part.mp4")
+
+
+def test_invalid_output_container_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="output_format must be"):
+        MediaStreamTask(
+            "https://cdn.example/master.m3u8", tmp_path,
+            ffmpeg_path="/fake/ffmpeg", output_format="avi",
+        )

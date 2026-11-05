@@ -18,7 +18,7 @@ from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 from mediagrab.downloader import DownloadError, DownloadPaused, DownloadProgress, DownloadTask, filename_from_url
 from mediagrab.formatting import format_eta
 from mediagrab.media_inspector import ManifestInspection, inspect_manifest, format_dash_representation_label
-from mediagrab.capture import MediaKind, HLSVariant
+from mediagrab.capture import MediaKind, HLSVariant, classify_media
 from mediagrab.task_factory import create_download_task
 from mediagrab.queue_store import load_queue, save_queue
 from mediagrab.history_store import append_history, make_history_entry, load_history, clear_history
@@ -85,6 +85,7 @@ class DownloadRow(Adw.ActionRow):
         self.audio_url = audio_url
         self.subtitle_url = subtitle_url
         self.expected_checksum = expected_checksum
+        self.output_format = getattr(task, "output_format", None)
         self.replacement_target = replacement_target
         self.replacement_signature = replacement_signature
         self.task = task
@@ -819,7 +820,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         for entry in load_queue():
             url = entry["url"]
             try:
-                task = create_download_task(url, self.download_directory, audio_url=entry.get("audio_url"), subtitle_url=entry.get("subtitle_url"), expected_checksum=entry.get("expected_checksum"))
+                task = create_download_task(url, self.download_directory, audio_url=entry.get("audio_url"), subtitle_url=entry.get("subtitle_url"), expected_checksum=entry.get("expected_checksum"), output_format=entry.get("output_format", "mkv"))
             except ValueError:
                 continue
             row = DownloadRow(
@@ -895,6 +896,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 **({"audio_url": row.audio_url} if row.audio_url else {}),
                 **({"subtitle_url": row.subtitle_url} if row.subtitle_url else {}),
                 **({"expected_checksum": row.expected_checksum} if row.expected_checksum else {}),
+                **({"output_format": row.output_format} if row.output_format else {}),
             }
             if state == "Detected":
                 entry["candidate"] = True
@@ -1046,6 +1048,34 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             dropdown = None
             content.append(Gtk.Label(label="No separate quality variants were declared. The original manifest will be queued.", wrap=True))
 
+        output_format_dropdown = Gtk.DropDown(
+            model=Gtk.StringList.new(["MKV (default)", "MP4"])
+        )
+        set_accessible_label(output_format_dropdown, "Video output container")
+        output_format_dropdown.set_selected(0)
+        content.append(Gtk.Label(label="Output container", xalign=0))
+        content.append(output_format_dropdown)
+        content.append(Gtk.Label(
+            label="This applies to FFmpeg-backed manifest downloads. Direct media files keep their original format.",
+            xalign=0, wrap=True,
+        ))
+
+        def update_output_format_availability(*_args: object) -> None:
+            choice_index = dropdown.get_selected() if dropdown is not None else 0
+            choice_index = min(choice_index, len(choices) - 1)
+            selected_url = choices[choice_index][1]
+            is_stream = (
+                selected_url == original_url
+                or classify_media(selected_url) in {MediaKind.HLS, MediaKind.DASH}
+            )
+            output_format_dropdown.set_sensitive(is_stream)
+            if not is_stream:
+                output_format_dropdown.set_selected(0)
+
+        if dropdown is not None:
+            dropdown.connect("notify::selected", update_output_format_availability)
+        update_output_format_availability()
+
         details = ["Type: " + result.kind.value.upper()]
         if result.kind is MediaKind.HLS:
             audio_count = sum(item.kind == "audio" for item in result.renditions)
@@ -1088,7 +1118,14 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                             self.toast_overlay.add_toast(Adw.Toast.new("Those subtitles do not belong to the selected video variant."))
                             return
                         subtitle_url = selected_subtitle.url
-                if self.add_download_url(chosen_video, audio_url=audio_url, subtitle_url=subtitle_url):
+                output_format = (
+                    "mp4" if output_format_dropdown.get_sensitive()
+                    and output_format_dropdown.get_selected() == 1 else "mkv"
+                )
+                if self.add_download_url(
+                    chosen_video, audio_url=audio_url, subtitle_url=subtitle_url,
+                    output_format=output_format,
+                ):
                     self.dismiss_candidate_by_url(original_url)
 
         audio_choices = [item for item in result.renditions if item.kind == "audio" and item.url]
@@ -1159,7 +1196,11 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         if row is not None:
             self.dismiss_candidate(row)
 
-    def add_download_url(self, url: str, *, audio_url: str | None = None, subtitle_url: str | None = None, expected_checksum: str | None = None) -> bool:
+    def add_download_url(
+        self, url: str, *, audio_url: str | None = None,
+        subtitle_url: str | None = None, expected_checksum: str | None = None,
+        output_format: str = "mkv",
+    ) -> bool:
         """Validate and enqueue a URL from either the UI or browser bridge."""
         if not is_valid_http_url(url):
             self.toast_overlay.add_toast(Adw.Toast.new("Enter a valid credential-free HTTP(S) URL."))
@@ -1176,7 +1217,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             )
             return False
         try:
-            task = create_download_task(url, self.download_directory, audio_url=audio_url, subtitle_url=subtitle_url, expected_checksum=expected_checksum)
+            task = create_download_task(url, self.download_directory, audio_url=audio_url, subtitle_url=subtitle_url, expected_checksum=expected_checksum, output_format=output_format)
         except ValueError as exc:
             self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
             return False
@@ -1401,7 +1442,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         if row in self._pending_downloads or row in self._active_downloads:
             return
         try:
-            task = create_download_task(row.url, self.download_directory, audio_url=row.audio_url, subtitle_url=row.subtitle_url, expected_checksum=row.expected_checksum)
+            task = create_download_task(row.url, self.download_directory, audio_url=row.audio_url, subtitle_url=row.subtitle_url, expected_checksum=row.expected_checksum, output_format=row.output_format or "mkv")
         except ValueError as exc:
             self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
             return

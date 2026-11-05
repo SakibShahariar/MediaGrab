@@ -12,8 +12,8 @@ def test_hls_and_dash_urls_use_stream_task(tmp_path: Path, monkeypatch) -> None:
     created = []
 
     class FakeStreamTask:
-        def __init__(self, url, destination):
-            created.append((url, destination))
+        def __init__(self, url, destination, **kwargs):
+            created.append((url, destination, kwargs.get("output_format", "mkv")))
 
     monkeypatch.setattr(task_factory, "MediaStreamTask", FakeStreamTask)
     monkeypatch.setattr(
@@ -27,8 +27,8 @@ def test_hls_and_dash_urls_use_stream_task(tmp_path: Path, monkeypatch) -> None:
     assert isinstance(hls, FakeStreamTask)
     assert isinstance(dash, FakeStreamTask)
     assert created == [
-        ("https://cdn.test/live.m3u8", tmp_path),
-        ("https://cdn.test/manifest.mpd", tmp_path),
+        ("https://cdn.test/live.m3u8", tmp_path, "mkv"),
+        ("https://cdn.test/manifest.mpd", tmp_path, "mkv"),
     ]
 
 
@@ -49,7 +49,7 @@ def test_direct_and_unknown_urls_use_http_task(tmp_path: Path, monkeypatch) -> N
 
 
 def test_missing_ffmpeg_error_is_preserved_for_ui(tmp_path: Path, monkeypatch) -> None:
-    def missing_ffmpeg(_url, _destination):
+    def missing_ffmpeg(_url, _destination, **_kwargs):
         raise ValueError("FFmpeg is required for HLS/DASH downloads")
 
     monkeypatch.setattr(task_factory, "classify_media", lambda _url: MediaKind.HLS)
@@ -87,3 +87,20 @@ def test_expected_checksum_is_forwarded_to_both_task_engines(tmp_path: Path, mon
         ("https://cdn.test/file.bin", tmp_path, checksum),
         ("https://cdn.test/live.m3u8", tmp_path, checksum),
     ]
+
+
+def test_output_format_is_forwarded_to_stream_task(tmp_path: Path, monkeypatch) -> None:
+    created = []
+
+    class FakeStreamTask:
+        def __init__(self, url, destination, **kwargs):
+            created.append(kwargs.get("output_format"))
+
+    monkeypatch.setattr(task_factory, "MediaStreamTask", FakeStreamTask)
+    monkeypatch.setattr(task_factory, "classify_media", lambda _url: MediaKind.HLS)
+
+    task_factory.create_download_task(
+        "https://cdn.test/live.m3u8", tmp_path, output_format="mp4"
+    )
+
+    assert created == ["mp4"]
