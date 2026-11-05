@@ -108,3 +108,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/development.md](docs/developmen
 ## License
 
 MediaGrab is licensed under the **GNU General Public License v3.0 or later** ([`GPL-3.0-or-later`](https://spdx.org/licenses/GPL-3.0-or-later.html)). See [LICENSE](LICENSE) for the full license text.
+
+
+## Optional site extractor plugins
+
+MediaGrab discovers trusted Python plugins from the `mediagrab.extractors` entry-point group. Plugins must declare the `candidate-expansion` capability and implement `supports(url)` and `extract(url)`. They can add validated URLs to the **Detected** review inbox, but cannot approve or start downloads. The plugin receives only the source URL; cookies, authorization headers, request bodies, and browser-session objects are not exposed. Plugin failures are isolated. Plugins are normal Python code running with the user's permissions, not sandboxed code—install only plugins you trust. See [the plugin API guide](docs/development.md#site-extractor-plugin-api).

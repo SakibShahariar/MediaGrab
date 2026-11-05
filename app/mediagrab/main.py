@@ -42,6 +42,7 @@ from mediagrab.diagnostics import configure_logging, get_logger, log_event, read
 from mediagrab.url_utils import is_valid_http_url, redact_url
 from mediagrab.cli import HELP_TEXT, parse_command
 from mediagrab.dbus_api import register_dbus_api
+from mediagrab.extractors import ExtractedMedia, discover_media_candidates
 from mediagrab.shortcuts import COMMAND_PALETTE_ACTIONS, SHORTCUTS
 
 
@@ -1188,7 +1189,46 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         self._persist_queue()
         log_event(_LOG, "capture_candidate_added", url=url)
         self.toast_overlay.add_toast(Adw.Toast.new("Media candidate added for review."))
+        threading.Thread(
+            target=self._discover_plugin_candidates,
+            args=(url,),
+            daemon=True,
+            name="mediagrab-site-extractors",
+        ).start()
         return True
+
+    def _discover_plugin_candidates(self, source_url: str) -> None:
+        """Run optional site extractors off the GTK thread."""
+        candidates = discover_media_candidates(source_url)
+        if candidates:
+            GLib.idle_add(self._append_extracted_candidates, candidates)
+
+    def _append_extracted_candidates(self, candidates: list[ExtractedMedia]) -> bool:
+        added = 0
+        for candidate in candidates:
+            if not is_valid_http_url(candidate.url):
+                continue
+            if any(row.url == candidate.url for row in self._rows):
+                continue
+            try:
+                task = create_download_task(candidate.url, self.download_directory)
+            except ValueError:
+                continue
+            row = DownloadRow(self, candidate.url, task)
+            if candidate.title:
+                row.set_title(candidate.title)
+            row.finish("Detected")
+            self._rows.append(row)
+            self.list_box.append(row)
+            added += 1
+        if added:
+            self._update_count()
+            self._persist_queue()
+            log_event(_LOG, "site_extractor_candidates_added", count=added)
+            self.toast_overlay.add_toast(
+                Adw.Toast.new(f"Site extractors found {added} additional candidate" + ("" if added == 1 else "s") + ".")
+            )
+        return GLib.SOURCE_REMOVE
 
     def dismiss_candidate(self, row: DownloadRow) -> None:
         if row not in self._rows or row.status_label.get_text() != "Detected":

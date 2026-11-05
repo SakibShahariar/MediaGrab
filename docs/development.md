@@ -96,3 +96,37 @@ See [Browser Native Host Installer](browser-native-host-installer.md) for exact 
 - Unfinished downloads restore as Interrupted and require manual retry.
 - At most three downloads run at once. Existing completed files are preserved; repeated names use numbered alternatives such as `file (1).zip`. Filename selection also skips names with an existing partial download.
 - Actual Firefox/Chromium-family browser-to-desktop handoff and GTK UI behavior still need end-to-end testing on installed browsers.
+
+
+## Site extractor plugin API
+
+Register a plugin using Python package metadata:
+
+```toml
+[project.entry-points."mediagrab.extractors"]
+example-site = "example_mediagrab_plugin:ExampleExtractor"
+```
+
+The entry point may reference a class or factory. A plugin declares the `candidate-expansion` capability and provides:
+
+```python
+from mediagrab.extractors import ExtractedMedia
+
+class ExampleExtractor:
+    name = "example-site"
+    capabilities = frozenset({"candidate-expansion"})
+
+    def supports(self, url: str) -> bool:
+        return "example.test" in url
+
+    def extract(self, url: str):
+        return [
+            ExtractedMedia(
+                "https://cdn.example.test/video.mp4",
+                title="Example video",
+                media_type="video/mp4",
+            )
+        ]
+```
+
+When a browser candidate enters the review inbox, MediaGrab discovers compatible plugins on a worker thread. Returned candidates are revalidated, de-duplicated, and added as **Detected** rows. No plugin result starts a download automatically. The plugin API supplies only the source URL—not browser cookies, request headers, authorization data, or page-session objects. Exceptions are isolated per plugin and logged without exception text or candidate URLs. Plugins execute as ordinary installed Python code with the user's permissions; they are not sandboxed. Only install plugins you trust, and keep extraction bounded so a plugin cannot leave a worker occupied indefinitely.
