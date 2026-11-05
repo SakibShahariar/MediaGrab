@@ -104,3 +104,25 @@ def test_output_format_is_forwarded_to_stream_task(tmp_path: Path, monkeypatch) 
     )
 
     assert created == ["mp4"]
+
+
+def test_dash_video_stream_index_is_forwarded_with_and_without_checksum(tmp_path: Path, monkeypatch) -> None:
+    created = []
+
+    class FakeStreamTask:
+        def __init__(self, url, destination, **kwargs):
+            created.append(kwargs.get("dash_video_stream_index"))
+
+    monkeypatch.setattr(task_factory, "MediaStreamTask", FakeStreamTask)
+    monkeypatch.setattr(task_factory, "classify_media", lambda _url: MediaKind.DASH)
+
+    task_factory.create_download_task(
+        "https://cdn.test/manifest.mpd", tmp_path, dash_video_stream_index=1
+    )
+    task_factory.create_download_task(
+        "https://cdn.test/manifest.mpd", tmp_path,
+        expected_checksum="sha256:" + "a" * 64,
+        dash_video_stream_index=2,
+    )
+
+    assert created == [1, 2]
