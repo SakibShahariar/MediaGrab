@@ -94,6 +94,7 @@ class DownloadRow(Adw.ActionRow):
         self.subtitle_url = subtitle_url
         self.expected_checksum = expected_checksum
         self.output_format = getattr(task, "output_format", None)
+        self.dash_video_stream_index = getattr(task, "dash_video_stream_index", None)
         self.replacement_target = replacement_target
         self.replacement_signature = replacement_signature
         self.task = task
@@ -841,7 +842,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         for entry in load_queue():
             url = entry["url"]
             try:
-                task = create_download_task(url, self.download_directory, audio_url=entry.get("audio_url"), subtitle_url=entry.get("subtitle_url"), expected_checksum=entry.get("expected_checksum"), output_format=entry.get("output_format", "mkv"))
+                task = create_download_task(url, self.download_directory, audio_url=entry.get("audio_url"), subtitle_url=entry.get("subtitle_url"), expected_checksum=entry.get("expected_checksum"), output_format=entry.get("output_format", "mkv"), dash_video_stream_index=entry.get("dash_video_stream_index"))
             except ValueError:
                 continue
             row = DownloadRow(
@@ -907,7 +908,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
     def _persist_queue(self) -> None:
         # Completed items are history only; unfinished items are restored as retryable.
-        entries: list[dict[str, str | bool]] = []
+        entries: list[dict[str, str | bool | int]] = []
         for row in self._rows:
             state = row.status_label.get_text()
             if state == "Completed":
@@ -918,6 +919,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 **({"subtitle_url": row.subtitle_url} if row.subtitle_url else {}),
                 **({"expected_checksum": row.expected_checksum} if row.expected_checksum else {}),
                 **({"output_format": row.output_format} if row.output_format else {}),
+                **({"dash_video_stream_index": row.dash_video_stream_index} if row.dash_video_stream_index is not None else {}),
             }
             if state == "Detected":
                 entry["candidate"] = True
@@ -1278,7 +1280,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
     def add_download_url(
         self, url: str, *, audio_url: str | None = None,
         subtitle_url: str | None = None, expected_checksum: str | None = None,
-        output_format: str = "mkv",
+        output_format: str = "mkv", dash_video_stream_index: int | None = None,
     ) -> bool:
         """Validate and enqueue a URL from either the UI or browser bridge."""
         if not is_valid_http_url(url):
@@ -1296,7 +1298,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             )
             return False
         try:
-            task = create_download_task(url, self.download_directory, audio_url=audio_url, subtitle_url=subtitle_url, expected_checksum=expected_checksum, output_format=output_format)
+            task = create_download_task(url, self.download_directory, audio_url=audio_url, subtitle_url=subtitle_url, expected_checksum=expected_checksum, output_format=output_format, dash_video_stream_index=dash_video_stream_index)
         except ValueError as exc:
             self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
             return False
@@ -1521,7 +1523,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         if row in self._pending_downloads or row in self._active_downloads:
             return
         try:
-            task = create_download_task(row.url, self.download_directory, audio_url=row.audio_url, subtitle_url=row.subtitle_url, expected_checksum=row.expected_checksum, output_format=row.output_format or "mkv")
+            task = create_download_task(row.url, self.download_directory, audio_url=row.audio_url, subtitle_url=row.subtitle_url, expected_checksum=row.expected_checksum, output_format=row.output_format or "mkv", dash_video_stream_index=row.dash_video_stream_index)
         except ValueError as exc:
             self.toast_overlay.add_toast(Adw.Toast.new(str(exc)))
             return
