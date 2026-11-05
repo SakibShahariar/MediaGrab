@@ -221,7 +221,8 @@ class MediaStreamTask:
                 on_progress(DownloadProgress(size, size, size / elapsed, "completed"))
             return target
         except DownloadError:
-            self._set_state("failed")
+            if self.state != "cancelled":
+                self._set_state("failed")
             raise
         except FileNotFoundError as exc:
             self._set_state("failed")
