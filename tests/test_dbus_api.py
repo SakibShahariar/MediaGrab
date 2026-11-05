@@ -127,3 +127,49 @@ def test_unknown_method_is_rejected():
         f"{dbus_api.INTERFACE_NAME}.Error.UnknownMethod",
         "Unsupported MediaGrab method: Delete",
     )
+
+
+def test_registration_exports_the_versioned_object_and_dispatches_methods():
+    class FakeInterface:
+        pass
+
+    class FakeNodeInfo:
+        interfaces = [FakeInterface()]
+
+        @staticmethod
+        def new_for_xml(xml):
+            assert xml == dbus_api.INTROSPECTION_XML
+            return FakeNodeInfo()
+
+    class FakeConnection:
+        def register_object(self, path, interface, callback, _get, _set):
+            self.path = path
+            self.interface = interface
+            self.callback = callback
+            return 73
+
+    class FakeGio:
+        DBusNodeInfo = FakeNodeInfo
+
+    class RegisteringApplication(FakeApplication):
+        def __init__(self):
+            super().__init__(result='registered')
+            self.connection = FakeConnection()
+
+        def get_dbus_connection(self):
+            return self.connection
+
+    app = RegisteringApplication()
+    dbus_api.register_dbus_api(app, FakeGio, FakeGLib)
+
+    assert app.connection.path == dbus_api.OBJECT_PATH
+    assert app.connection.interface is FakeNodeInfo.interfaces[0]
+    assert app._dbus_registration_id == 73
+
+    invocation = FakeInvocation()
+    app.connection.callback(
+        None, ":1.2", dbus_api.OBJECT_PATH, dbus_api.INTERFACE_NAME,
+        "AddUrl", FakeParameters("https://example.test/file.mp4"), invocation,
+    )
+    assert app.calls == [("add-url", "https://example.test/file.mp4")]
+    assert invocation.value.values == ("registered",)
