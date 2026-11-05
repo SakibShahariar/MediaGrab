@@ -35,12 +35,14 @@ def create_download_task(
             return MediaStreamTask(
                 url, destination, audio_url=audio_url, subtitle_url=subtitle_url,
                 expected_checksum=expected_checksum, output_format=output_format,
+                dash_video_stream_index=dash_video_stream_index,
             )
         if expected_checksum is None:
             return MediaStreamTask(url, destination, output_format=output_format, dash_video_stream_index=dash_video_stream_index)
         return MediaStreamTask(
             url, destination, expected_checksum=expected_checksum,
             output_format=output_format,
+            dash_video_stream_index=dash_video_stream_index,
         )
     if expected_checksum is None:
         return DownloadTask(url, destination)
