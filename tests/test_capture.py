@@ -291,3 +291,48 @@ def test_dash_inherited_segment_template_suppresses_representation_baseurl() -> 
     assert len(reps) == 1
     assert reps[0].id == "video"
     assert reps[0].url is None
+
+
+
+def test_dash_dynamic_mpd_preserves_declared_live_window_metadata() -> None:
+    manifest = """<MPD type="dynamic"
+      availabilityStartTime="2026-11-05T10:00:00Z"
+      timeShiftBufferDepth="PT30M"
+      minimumUpdatePeriod="PT5S"
+      suggestedPresentationDelay="PT12S">
+      <Period><AdaptationSet mimeType="video/mp4">
+        <Representation id="live" bandwidth="1800000">
+          <SegmentTemplate timescale="1" media="chunk-$Number$.m4s" initialization="init.mp4">
+            <SegmentTimeline><S t="0" d="5" r="-1"/></SegmentTimeline>
+          </SegmentTemplate>
+        </Representation>
+      </AdaptationSet></Period>
+    </MPD>"""
+    reps = parse_dash_representations("https://cdn.example/live/manifest.mpd", manifest)
+
+    assert len(reps) == 1
+    assert reps[0].mpd_type == "dynamic"
+    assert reps[0].availability_start_time == "2026-11-05T10:00:00Z"
+    assert reps[0].time_shift_buffer_depth == "PT30M"
+    assert reps[0].minimum_update_period == "PT5S"
+    assert reps[0].suggested_presentation_delay == "PT12S"
+    assert reps[0].url is None
+
+
+def test_dash_static_mpd_uses_static_defaults_for_live_window_metadata() -> None:
+    reps = parse_dash_representations(
+        "https://cdn.example/movie.mpd",
+        "<MPD><Period><AdaptationSet><Representation id='static'/></AdaptationSet></Period></MPD>",
+    )
+
+    assert reps[0].mpd_type == "static"
+    assert reps[0].availability_start_time is None
+    assert reps[0].time_shift_buffer_depth is None
+
+
+def test_dash_rejects_unknown_mpd_type() -> None:
+    with pytest.raises(ValueError, match="MPD type"):
+        parse_dash_representations(
+            "https://cdn.example/live.mpd",
+            "<MPD type='archive'><Period/></MPD>",
+        )

@@ -45,6 +45,11 @@ class DASHRepresentation:
     height: int | None
     mime_type: str | None
     codecs: str | None
+    mpd_type: str = "static"
+    availability_start_time: str | None = None
+    time_shift_buffer_depth: str | None = None
+    minimum_update_period: str | None = None
+    suggested_presentation_delay: str | None = None
 
 
 @dataclass(frozen=True)
@@ -133,6 +138,17 @@ def parse_dash_representations(
                 return urljoin(parent, child.text.strip())
         return parent
 
+    # Preserve MPD-level live-window declarations as metadata. This parser
+    # does not calculate segment availability or implement a live DASH engine.
+    mpd_attrs = root.attrib
+    mpd_type = mpd_attrs.get("type", "static").strip().lower()
+    if mpd_type not in {"static", "dynamic"}:
+        raise ValueError("DASH MPD type must be 'static' or 'dynamic'")
+    availability_start_time = mpd_attrs.get("availabilityStartTime")
+    time_shift_buffer_depth = mpd_attrs.get("timeShiftBufferDepth")
+    minimum_update_period = mpd_attrs.get("minimumUpdatePeriod")
+    suggested_presentation_delay = mpd_attrs.get("suggestedPresentationDelay")
+
     mpd_base = find_base(root, manifest_url)
     result: list[DASHRepresentation] = []
     for period in root:
@@ -177,6 +193,11 @@ def parse_dash_representations(
                         height=_nonnegative_int(attrs.get("height")),
                         mime_type=attrs.get("mimeType") or adaptation.attrib.get("mimeType"),
                         codecs=attrs.get("codecs") or adaptation.attrib.get("codecs"),
+                        mpd_type=mpd_type,
+                        availability_start_time=availability_start_time,
+                        time_shift_buffer_depth=time_shift_buffer_depth,
+                        minimum_update_period=minimum_update_period,
+                        suggested_presentation_delay=suggested_presentation_delay,
                     )
                 )
     return result
