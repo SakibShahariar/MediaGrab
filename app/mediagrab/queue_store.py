@@ -12,10 +12,15 @@ from mediagrab.checksum import parse_expected_checksum
 
 OPTIONAL_URL_FIELDS = ("audio_url", "subtitle_url")
 OUTPUT_FORMATS = {"mkv", "mp4"}
+DASH_VIDEO_STREAM_INDEX_FIELD = "dash_video_stream_index"
 
 
 def _valid_output_format(value: Any) -> bool:
     return isinstance(value, str) and value in OUTPUT_FORMATS
+
+
+def _valid_dash_video_stream_index(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
 QueueEntry = dict[str, Any]
@@ -109,6 +114,8 @@ def load_queue(path: str | Path | None = None) -> list[QueueEntry]:
             entry["expected_checksum"] = item["expected_checksum"]
         if _valid_output_format(item.get("output_format")):
             entry["output_format"] = item["output_format"]
+        if _valid_dash_video_stream_index(item.get(DASH_VIDEO_STREAM_INDEX_FIELD)):
+            entry[DASH_VIDEO_STREAM_INDEX_FIELD] = item[DASH_VIDEO_STREAM_INDEX_FIELD]
         target = item.get("replacement_target")
         signature = item.get("replacement_signature")
         if isinstance(target, str) and target and _valid_replacement_signature(signature):
