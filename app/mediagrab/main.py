@@ -1665,6 +1665,8 @@ class MediaGrabApplication(Adw.Application):
             self._on_activate(self)
             return "MediaGrab window activated."
 
+        if action not in {"list", "status"}:
+            self._on_activate(self)
         window = self.get_active_window()
         if not isinstance(window, MediaGrabWindow):
             window = MediaGrabWindow(application=self)
