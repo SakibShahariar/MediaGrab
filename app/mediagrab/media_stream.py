@@ -63,7 +63,9 @@ def build_ffmpeg_command(
     # Explicit selections replace that media type from the video input. Mapping
     # all of input 0 as well would silently include duplicate/default audio or
     # subtitle streams alongside the user's selected track.
-    if audio_index is None and subtitle_index is None:
+    if dash_video_stream_index is not None:
+        command.extend(["-map", "0:" + str(dash_video_stream_index), "-map", "0:a?", "-map", "0:s?"])
+    elif audio_index is None and subtitle_index is None:
         command.extend(["-map", "0"])
     else:
         command.extend(["-map", "0:v?"])
