@@ -33,6 +33,7 @@ def build_ffmpeg_command(
     audio_url: str | None = None,
     subtitle_url: str | None = None,
     output_format: str = "mkv",
+    dash_video_stream_index: int | None = None,
 ) -> list[str]:
     """Build a stream-copy command for a supported output container."""
     if output_format not in _OUTPUT_FORMATS:
@@ -92,6 +93,7 @@ class MediaStreamTask:
         ffmpeg_path: str | None = None,
         expected_checksum: str | None = None,
         output_format: str = "mkv",
+        dash_video_stream_index: int | None = None,
     ) -> None:
         _validate_http_url(url)
         if output_format not in _OUTPUT_FORMATS:
@@ -108,6 +110,7 @@ class MediaStreamTask:
             parse_expected_checksum(expected_checksum)
         self.expected_checksum = expected_checksum
         self.output_format = output_format
+        self.dash_video_stream_index = dash_video_stream_index
         self.ffmpeg_path = ffmpeg_path or shutil.which("ffmpeg")
         self._cancel = threading.Event()
         self._lock = threading.Lock()
