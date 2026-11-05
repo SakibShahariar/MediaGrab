@@ -38,6 +38,8 @@ def build_ffmpeg_command(
     """Build a stream-copy command for a supported output container."""
     if output_format not in _OUTPUT_FORMATS:
         raise ValueError("output_format must be 'mkv' or 'mp4'")
+    if dash_video_stream_index is not None and (isinstance(dash_video_stream_index, bool) or not isinstance(dash_video_stream_index, int) or dash_video_stream_index < 0):
+        raise ValueError("dash_video_stream_index must be a non-negative integer or null")
     _validate_http_url(video_url, "Video URL")
     if audio_url:
         _validate_http_url(audio_url, "Audio URL")
@@ -100,6 +102,8 @@ class MediaStreamTask:
         _validate_http_url(url)
         if output_format not in _OUTPUT_FORMATS:
             raise ValueError("output_format must be 'mkv' or 'mp4'")
+        if dash_video_stream_index is not None and (isinstance(dash_video_stream_index, bool) or not isinstance(dash_video_stream_index, int) or dash_video_stream_index < 0):
+            raise ValueError("dash_video_stream_index must be a non-negative integer or null")
         if audio_url:
             _validate_http_url(audio_url, "Audio URL")
         if subtitle_url:
