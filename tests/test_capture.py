@@ -336,3 +336,35 @@ def test_dash_rejects_unknown_mpd_type() -> None:
             "https://cdn.example/live.mpd",
             "<MPD type='archive'><Period/></MPD>",
         )
+
+
+
+def test_dash_period_inherited_segment_template_suppresses_child_baseurls() -> None:
+    manifest = """<MPD><Period>
+      <SegmentTemplate media="period-$Number$.m4s" initialization="period-init.mp4"/>
+      <AdaptationSet mimeType="video/mp4">
+        <Representation id="video" bandwidth="1500000"><BaseURL>video/</BaseURL></Representation>
+      </AdaptationSet>
+    </Period></MPD>"""
+    reps = parse_dash_representations("https://cdn.example/live/manifest.mpd", manifest)
+
+    assert len(reps) == 1
+    assert reps[0].id == "video"
+    assert reps[0].url is None
+
+
+def test_dash_segment_addressing_does_not_leak_between_sibling_adaptations() -> None:
+    manifest = """<MPD><Period>
+      <AdaptationSet mimeType="video/mp4">
+        <SegmentTemplate media="video-$Number$.m4s" initialization="video-init.mp4"/>
+        <Representation id="segmented" bandwidth="1500000"><BaseURL>video/</BaseURL></Representation>
+      </AdaptationSet>
+      <AdaptationSet mimeType="audio/mp4">
+        <Representation id="direct-audio" bandwidth="128000"><BaseURL>audio.m4a</BaseURL></Representation>
+      </AdaptationSet>
+    </Period></MPD>"""
+    reps = parse_dash_representations("https://cdn.example/live/manifest.mpd", manifest)
+
+    assert [item.id for item in reps] == ["segmented", "direct-audio"]
+    assert reps[0].url is None
+    assert reps[1].url == "https://cdn.example/live/audio.m4a"
