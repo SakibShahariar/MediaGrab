@@ -67,4 +67,4 @@ jobs:
         run: python -m pip install -e ".[test]"
 
       - name: Run real FFmpeg stream integration tests
-        run: python -m pytest -v tests/test_media_stream_integration.py tests/test_dash_media_stream_integration.py
+        run: python -m pytest -v tests/test_media_stream_integration.py tests/test_dash_media_stream_integration.py tests/test_hls_encryption_live_integration.py
