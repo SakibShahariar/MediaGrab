@@ -138,3 +138,77 @@ def test_real_ffmpeg_handles_aes128_hls_and_missing_key_failure(tmp_path: Path) 
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+@pytest.mark.skipif(FFMPEG is None, reason="FFmpeg is not installed")
+def test_live_hls_playlist_can_be_cancelled_without_leaving_partial_output(tmp_path: Path) -> None:
+    import time
+    from mediagrab.downloader import DownloadError
+
+    source_dir = tmp_path / "live-source"
+    destination = tmp_path / "live-downloads"
+    source_dir.mkdir()
+    destination.mkdir()
+    playlist = source_dir / "live.m3u8"
+    generated = subprocess.run(
+        [
+            FFMPEG, "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "testsrc=size=160x90:rate=10",
+            "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100",
+            "-t", "2", "-c:v", "mpeg2video", "-c:a", "mp2",
+            "-f", "hls", "-hls_time", "1", "-hls_list_size", "0",
+            "-hls_segment_filename", str(source_dir / "segment%02d.ts"),
+            str(playlist),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if generated.returncode:
+        pytest.skip(f"Installed FFmpeg cannot generate the local HLS fixture: {generated.stderr[-500:]}")
+    playlist.write_text(
+        playlist.read_text(encoding="utf-8").replace("#EXT-X-ENDLIST\\n", ""),
+        encoding="utf-8",
+    )
+
+    server = ThreadingHTTPServer(
+        ("127.0.0.1", 0),
+        partial(_QuietHandler, directory=str(source_dir)),
+    )
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    task = MediaStreamTask(
+        f"http://127.0.0.1:{server.server_port}/live.m3u8",
+        destination,
+        ffmpeg_path=FFMPEG,
+    )
+    failures = []
+
+    def download() -> None:
+        try:
+            task.run()
+        except DownloadError as exc:
+            failures.append(exc)
+
+    worker = Thread(target=download, daemon=True)
+    worker.start()
+    try:
+        deadline = time.monotonic() + 8
+        while task.state == "queued" and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert task.state == "downloading"
+        time.sleep(0.5)
+        task.cancel()
+        worker.join(timeout=10)
+        assert not worker.is_alive()
+        assert failures
+        assert task.state == "cancelled"
+        assert not (destination / "live.mkv").exists()
+        assert not list(destination.glob("*.mediagrab-part.*"))
+    finally:
+        if worker.is_alive():
+            task.cancel()
+            worker.join(timeout=10)
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
