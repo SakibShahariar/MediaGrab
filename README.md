@@ -54,6 +54,7 @@ The Add a download dialog includes an explicit **Paste** action. MediaGrab reads
 The `mediagrab` command forwards operations to the running desktop application through its single-instance `GApplication` command-line channel (D-Bus activation). It can add URLs, inspect the current in-memory queue, and control queue items:
 
 ```fish
+mediagrab --help
 mediagrab --add-url 'https://example.test/video.mp4'
 mediagrab --add-candidate 'https://example.test/master.m3u8'
 mediagrab --list
