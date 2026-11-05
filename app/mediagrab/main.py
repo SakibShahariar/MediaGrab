@@ -1040,11 +1040,13 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
         choices: list[tuple[str, str]] = [("Use original manifest (FFmpeg chooses streams)", original_url)]
         choice_heights: list[int | None] = [None]
+        choice_dash_stream_indices: list[int | None] = [None]
         if result.kind is MediaKind.HLS:
             variants = sorted(result.variants, key=lambda item: (item.height or 0, item.bandwidth or 0))
             for variant in variants:
                 choices.append((self._variant_label(variant), variant.url))
                 choice_heights.append(variant.height)
+                choice_dash_stream_indices.append(None)
         elif result.kind is MediaKind.DASH:
             # A representation is independently downloadable only when the
             # manifest declares a direct/inherited BaseURL. SegmentTemplate,
@@ -1060,6 +1062,19 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                         representation.url,
                     ))
                     choice_heights.append(representation.height)
+                    choice_dash_stream_indices.append(None)
+                elif (
+                    representation.stream_index is not None
+                    and representation.mime_type
+                    and representation.mime_type.startswith("video/")
+                    and representation.mpd_type == "static"
+                ):
+                    choices.append((
+                        format_dash_representation_label(representation),
+                        original_url,
+                    ))
+                    choice_heights.append(representation.height)
+                    choice_dash_stream_indices.append(representation.stream_index)
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         for side in ("top", "bottom", "start", "end"):
@@ -1125,6 +1140,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 index = dropdown.get_selected() if dropdown is not None else 0
                 index = min(index, len(choices) - 1)
                 chosen_video = choices[index][1]
+                dash_video_stream_index = choice_dash_stream_indices[index]
                 selected_variant = next((item for item in result.variants if item.url == chosen_video), None)
                 audio_url = None
                 subtitle_url = None
@@ -1151,6 +1167,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 if self.add_download_url(
                     chosen_video, audio_url=audio_url, subtitle_url=subtitle_url,
                     output_format=output_format,
+                    dash_video_stream_index=dash_video_stream_index,
                 ):
                     selected_height = choice_heights[index]
                     if selected_height is not None:
