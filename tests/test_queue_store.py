@@ -232,3 +232,17 @@ def test_output_format_survives_queue_persistence_and_invalid_values_are_dropped
         {"url": "https://example.test/legacy.m3u8"},
         {"url": "https://example.test/invalid.m3u8"},
     ]
+
+
+def test_dash_representation_index_survives_queue_and_invalid_values_are_dropped(tmp_path: Path) -> None:
+    path = tmp_path / "queue.json"
+    save_queue([
+        {"url": "https://example.test/manifest.mpd", "dash_video_stream_index": 2},
+        {"url": "https://example.test/negative.mpd", "dash_video_stream_index": -1},
+        {"url": "https://example.test/bool.mpd", "dash_video_stream_index": True},
+    ], path)
+    assert load_queue(path) == [
+        {"url": "https://example.test/manifest.mpd", "dash_video_stream_index": 2},
+        {"url": "https://example.test/negative.mpd"},
+        {"url": "https://example.test/bool.mpd"},
+    ]
