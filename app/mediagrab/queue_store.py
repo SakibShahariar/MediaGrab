@@ -16,6 +16,8 @@ OUTPUT_FORMATS = {"mkv", "mp4"}
 
 def _valid_output_format(value: Any) -> bool:
     return isinstance(value, str) and value in OUTPUT_FORMATS
+
+
 QueueEntry = dict[str, Any]
 _REPLACEMENT_SIGNATURE_FIELDS = ("device", "inode", "size", "mtime_ns")
 
@@ -107,8 +109,6 @@ def load_queue(path: str | Path | None = None) -> list[QueueEntry]:
             entry["expected_checksum"] = item["expected_checksum"]
         if _valid_output_format(item.get("output_format")):
             entry["output_format"] = item["output_format"]
-        if _valid_output_format(item.get("output_format")):
-            entry["output_format"] = item["output_format"]
         target = item.get("replacement_target")
         signature = item.get("replacement_signature")
         if isinstance(target, str) and target and _valid_replacement_signature(signature):
@@ -137,6 +137,8 @@ def save_queue(entries: list[QueueEntry], path: str | Path | None = None) -> Non
             entry["interrupted_recorded"] = True
         if _valid_checksum(item.get("expected_checksum")):
             entry["expected_checksum"] = item["expected_checksum"]
+        if _valid_output_format(item.get("output_format")):
+            entry["output_format"] = item["output_format"]
         target = item.get("replacement_target")
         signature = item.get("replacement_signature")
         if isinstance(target, str) and target and _valid_replacement_signature(signature):
