@@ -49,6 +49,7 @@ jobs:
   ffmpeg-integration:
     name: FFmpeg stream integration
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -66,5 +67,11 @@ jobs:
       - name: Install package and test dependencies
         run: python -m pip install -e ".[test]"
 
-      - name: Run real FFmpeg stream integration tests
-        run: python -m pytest -v tests/test_media_stream_integration.py tests/test_dash_media_stream_integration.py tests/test_hls_aes_integration.py
+      - name: Run HLS VOD integration tests
+        run: python -m pytest -vv tests/test_media_stream_integration.py
+
+      - name: Run DASH SegmentTemplate integration tests
+        run: python -m pytest -vv tests/test_dash_media_stream_integration.py
+
+      - name: Run AES-128 HLS integration tests
+        run: python -m pytest -vv tests/test_hls_aes_integration.py
