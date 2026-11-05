@@ -270,3 +270,20 @@ def test_mp4_muxing_failure_explains_container_compatibility(tmp_path: Path, mon
         task.run()
 
     assert "does not re-encode streams" in str(error.value)
+
+
+def test_stream_state_is_not_overwritten_after_termination(tmp_path: Path, monkeypatch) -> None:
+    task = MediaStreamTask(
+        "https://cdn.example/live.m3u8", tmp_path, ffmpeg_path="/fake/ffmpeg"
+    )
+
+    def start_then_signal(*_args, **_kwargs):
+        task._cancel.set()
+        return FakeProcess("", 0)
+
+    monkeypatch.setattr("mediagrab.media_stream.subprocess.Popen", start_then_signal)
+    with pytest.raises(DownloadError, match="cancelled"):
+        task.run()
+
+    assert task.state == "cancelled"
+    assert not list(tmp_path.glob("*.mediagrab-part.*"))
