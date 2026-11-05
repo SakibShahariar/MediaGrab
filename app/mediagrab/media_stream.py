@@ -159,6 +159,7 @@ class MediaStreamTask:
             self.ffmpeg_path, self.url, temporary,
             audio_url=self.audio_url, subtitle_url=self.subtitle_url,
             output_format=self.output_format,
+            dash_video_stream_index=self.dash_video_stream_index,
         )
         self._set_state("downloading")
         started = time.monotonic()
