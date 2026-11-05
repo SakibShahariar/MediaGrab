@@ -70,13 +70,35 @@ Persistent repository-specific record of commit-level CI checks and red-cross in
 - Descendant run [42061649803](https://github.com/SakibShahariar/MediaGrab/actions/runs/42061649803) passed Python 3.11–3.14 on `2097745`, whose tree includes this implementation.
 - Keep the exact-SHA result as unavailable; the resulting tree is green.
 
+## Audited range after the 2026-11-05 checkpoint
+
+- Reviewed range: `20977452f75b5421389180954f448ad2fd7b9444..d9cf5fed12916cddf9f7ec569f024738373ed9df`
+- The quality-preference durability commit passed the four-version Python matrix.
+- Fedora RPM packaging had three successive failures, each inspected from job logs and fixed in the next commit. The latest Fedora build and Python matrix both passed.
+
+| Commit SHA | Subject | Python CI | Fedora RPM CI |
+|---|---|---|---|
+| `9fdb7707692e20a83af705fafea9f33bcb521131` | fix(quality): sync saved preference directory | green — [42062449014](https://github.com/SakibShahariar/MediaGrab/actions/runs/42062449014) | not applicable — Fedora workflow not yet added |
+| `1df3a684fa75e70078c4ebd52bf254303ba5aac0` | feat(packaging): add Fedora RPM build and metadata | green — [42063028865](https://github.com/SakibShahariar/MediaGrab/actions/runs/42063028865) | red — [42063028825](https://github.com/SakibShahariar/MediaGrab/actions/runs/42063028825) |
+| `638d064052e8f09c4c920a02edcbbad31710f647` | fix(packaging): match RPM source archive filename | green — [42063354343](https://github.com/SakibShahariar/MediaGrab/actions/runs/42063354343) | red — [42063354791](https://github.com/SakibShahariar/MediaGrab/actions/runs/42063354791) |
+| `f87b5996d089ba37948def57625555bf66d66544` | fix(packaging): use direct Fedora build requirements | green — [42063712837](https://github.com/SakibShahariar/MediaGrab/actions/runs/42063712837) | red — [42063712851](https://github.com/SakibShahariar/MediaGrab/actions/runs/42063712851) |
+| `d9cf5fed12916cddf9f7ec569f024738373ed9df` | fix(packaging): include installed command entry points | green — [42064049913](https://github.com/SakibShahariar/MediaGrab/actions/runs/42064049913) | green — [42064050039](https://github.com/SakibShahariar/MediaGrab/actions/runs/42064050039) |
+
+### Resolved Fedora RPM failures
+
+1. **Source archive basename:** the spec's `Source0` expected `v0.1.0.tar.gz`, but CI generated `mediagrab-0.1.0.tar.gz`. Fixed in `638d064` by matching the generated archive name to the RPM source basename.
+2. **Unrelated dynamic build requirement:** `%pyproject_buildrequires -t` pulled in `tox-current-env`, which was not a project dependency. Fixed in `f87b599` by using the normal `%pyproject_buildrequires` invocation; pytest remains an explicit build requirement.
+3. **Unpackaged console scripts:** `%pyproject_save_files mediagrab` did not list the three generated `/usr/bin` entry points. Fixed in `d9cf5fe` by explicitly listing all three commands in `%files`.
+
+Final observed result: the Fedora RPM workflow built the package successfully, validated the desktop/AppStream metadata, ran the Python tests, and listed the RPM contents. Real Fedora installation and GNOME launch validation remain outside CI.
+
 ## Checkpoint
 
 - Repository: `SakibShahariar/MediaGrab`
 - Default branch: `main`
-- Reviewed checkpoint: `20977452f75b5421389180954f448ad2fd7b9444`
+- Reviewed checkpoint: `d9cf5fed12916cddf9f7ec569f024738373ed9df`
 - Reviewed: 2026-11-05
-- Next session: audit commits newer than this checkpoint and carry forward the direct-CI-unavailable note for `7d6f720`.
+- Next session: audit commits newer than this checkpoint. Carry forward the exact-SHA unavailable note for `7d6f720`; its descendant tree passed run `42061649803`.
 
 ## Session history
 
@@ -84,3 +106,4 @@ Persistent repository-specific record of commit-level CI checks and red-cross in
 |---|---|---|
 | 2026-11-02 | Initial checkpoint: `96dc9c81cfefec02d4bddea5693de9cccc35a677` | Baseline established. |
 | 2026-11-05 | `96dc9c8..2097745` (27 commits) | 25 direct green/red runs reviewed; one regression diagnosed and fixed; one exact-SHA run unavailable but descendant tree green. |
+| 2026-11-05 | `2097745..d9cf5fe` (5 commits) | Python matrix green throughout; three Fedora RPM failures were diagnosed and fixed in sequence; latest Fedora RPM build is green. |
