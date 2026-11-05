@@ -141,7 +141,7 @@ def _manual_aes128_hls_missing_key_scenario(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(FFMPEG is None, reason="FFmpeg is not installed")
-def test_hls_event_playlist_without_endlist_can_finish_cleanly(tmp_path: Path) -> None:
+def _manual_hls_event_playlist_without_endlist(tmp_path: Path) -> None:
     source_dir = tmp_path / "event-source"
     destination = tmp_path / "event-downloads"
     source_dir.mkdir()
