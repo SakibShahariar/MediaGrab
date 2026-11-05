@@ -57,7 +57,9 @@ def test_ffmpeg_rejects_invalid_selected_stream_index() -> None:
 def test_dashjs_real_world_template_manifest_shape() -> None:
     # Adapted from BSD-licensed Dash Industry Forum dash.js: https://github.com/Dash-Industry-Forum/dash.js/blob/development/samples/cmcd/mpds/basic-cmcd-config.mpd
     manifest = """<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static">
-      <BaseURL>https://cdn.example/bbb/</BaseURL>
+      <BaseURL serviceLocation="cdn-a">https://cdn-a.example/bbb/</BaseURL>
+      <BaseURL serviceLocation="cdn-b">https://cdn-b.example/bbb/</BaseURL>
+      <BaseURL serviceLocation="cdn-c">https://cdn-c.example/bbb/</BaseURL>
       <Period>
         <AdaptationSet mimeType="audio/mp4">
           <SegmentTemplate duration="1984" initialization="$RepresentationID$/init.mp4" media="$RepresentationID$/seg-$Number$.m4f"/>
