@@ -55,3 +55,32 @@ def test_help_text_documents_every_supported_operation() -> None:
         "--pause", "--resume", "--retry", "--cancel",
     ):
         assert option in HELP_TEXT
+
+
+def test_command_line_output_uses_print_literal_with_real_newline() -> None:
+    from mediagrab.main import MediaGrabApplication
+
+    class FakeApp:
+        def _execute_external_command(self, action: str, argument: str | None = None) -> str:
+            return "help text"
+
+    class FakeCommandLine:
+        def __init__(self, args: list[str]) -> None:
+            self._args = args
+            self.output: list[str] = []
+
+        def get_arguments(self) -> list[str]:
+            return self._args
+
+        def print_literal(self, text: str) -> None:
+            self.output.append(text)
+
+    help_line = FakeCommandLine(["mediagrab", "--help"])
+    assert MediaGrabApplication._on_command_line(FakeApp(), object(), help_line) == 0
+    assert len(help_line.output) == 1
+    assert help_line.output[0].endswith("\n")
+
+    error_line = FakeCommandLine(["mediagrab", "--delete", "1"])
+    assert MediaGrabApplication._on_command_line(FakeApp(), object(), error_line) == 2
+    assert len(error_line.output) == 1
+    assert error_line.output[0].endswith("\n")

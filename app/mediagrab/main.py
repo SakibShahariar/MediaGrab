@@ -1823,10 +1823,10 @@ class MediaGrabApplication(Adw.Application):
             action, argument = parse_command(args)
             result = self._execute_external_command(action, argument)
         except (ValueError, LookupError, RuntimeError) as exc:
-            command_line.print(f"{exc}\\n")
+            command_line.print_literal(f"{exc}\n")
             return 2
         if action in {"help", "list", "status"}:
-            command_line.print(result + "\\n")
+            command_line.print_literal(result + "\n")
         return 0
 
 
