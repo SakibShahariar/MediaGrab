@@ -13,7 +13,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
+from gi.repository import Adw, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
 
 from mediagrab.downloader import DownloadError, DownloadPaused, DownloadProgress, DownloadTask, filename_from_url
 from mediagrab.formatting import format_eta
@@ -230,6 +230,10 @@ class DownloadRow(Adw.ActionRow):
 
 
 class MediaGrabWindow(Adw.ApplicationWindow):
+    """Main download window, laid out with Adwaita's toolbar and breakpoint APIs."""
+
+    content_margin = GObject.Property(type=int, default=24)
+
     def __init__(self, **kwargs: object) -> None:
         super().__init__(**kwargs)
         self.set_title("MediaGrab")
@@ -243,11 +247,10 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         self.max_concurrent_downloads = int(settings["max_concurrent_downloads"])
         self.notifications_enabled = bool(settings["notifications_enabled"])
 
-        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        self.set_content(root)
+        view = Adw.ToolbarView()
+        self.set_content(view)
 
         header = Adw.HeaderBar()
-        root.append(header)
         header.set_title_widget(Adw.WindowTitle(title="MediaGrab", subtitle="Downloads"))
 
         history_button = Gtk.Button(label="History")
@@ -275,51 +278,18 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         add_button.add_css_class("suggested-action")
         add_button.connect("clicked", self._on_add_clicked)
         header.pack_end(add_button)
-
-        self.toast_overlay = Adw.ToastOverlay()
-        root.append(self.toast_overlay)
-
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
-        content.set_margin_top(24)
-        content.set_margin_bottom(24)
-        content.set_margin_start(28)
-        content.set_margin_end(28)
-        self.toast_overlay.set_child(content)
-
-        heading = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        content.append(heading)
-        intro = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        intro.set_hexpand(True)
-        heading.append(intro)
-
-        page_title = Gtk.Label(label="Your downloads")
-        page_title.add_css_class("title-1")
-        page_title.set_xalign(0)
-        intro.append(page_title)
-
-        self.destination_label = Gtk.Label(label=f"Files are saved to {self.download_directory}")
-        self.destination_label.add_css_class("dim-label")
-        self.destination_label.set_xalign(0)
-        self.destination_label.set_ellipsize(Pango.EllipsizeMode.END)
-        intro.append(self.destination_label)
-
-        self.count_label = Gtk.Label(label="0 items")
-        self.count_label.add_css_class("dim-label")
-        heading.append(self.count_label)
-
-        self.clear_completed_button = Gtk.Button(label="Clear completed")
-        self.clear_completed_button.add_css_class("flat")
-        self.clear_completed_button.set_tooltip_text("Remove completed downloads from this list")
-        self.clear_completed_button.set_sensitive(False)
-        self.clear_completed_button.connect("clicked", self._on_clear_completed)
-        heading.append(self.clear_completed_button)
+        view.add_top_bar(header)
 
         self.search_entry = Gtk.SearchEntry()
         set_accessible_label(self.search_entry, "Search downloads")
         self.search_entry.set_placeholder_text("Search downloads")
         self.search_entry.set_tooltip_text("Search by filename or source URL (Ctrl+F)")
         self.search_entry.connect("search-changed", self._on_search_changed)
-        content.append(self.search_entry)
+        search_bar = Gtk.SearchBar()
+        search_bar.connect_entry(self.search_entry)
+        search_bar.set_search_mode(True)
+        search_bar.set_key_capture_widget(self)
+        view.add_top_bar(search_bar)
 
         self.command_palette = Gtk.Popover()
         self.command_palette.set_position(Gtk.PositionType.BOTTOM)
@@ -332,6 +302,39 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         self.command_palette.set_child(palette_box)
         self.command_palette.set_parent(self.search_entry)
 
+        self.toast_overlay = Adw.ToastOverlay()
+        view.set_content(self.toast_overlay)
+
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        self._content_box = content
+        content.set_margin_top(12)
+        content.set_margin_bottom(12)
+        content.set_margin_start(self.content_margin)
+        content.set_margin_end(self.content_margin)
+        self.connect("notify::content-margin", self._on_content_margin_changed)
+        self.toast_overlay.set_child(content)
+
+        heading = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        content.append(heading)
+
+        self.destination_label = Gtk.Label(label=f"Files are saved to {self.download_directory}")
+        self.destination_label.add_css_class("dim-label")
+        self.destination_label.set_xalign(0)
+        self.destination_label.set_hexpand(True)
+        self.destination_label.set_ellipsize(Pango.EllipsizeMode.END)
+        heading.append(self.destination_label)
+
+        self.count_label = Gtk.Label(label="0 items")
+        self.count_label.add_css_class("dim-label")
+        heading.append(self.count_label)
+
+        self.clear_completed_button = Gtk.Button(label="Clear completed")
+        self.clear_completed_button.add_css_class("flat")
+        self.clear_completed_button.set_tooltip_text("Remove completed downloads from this list")
+        self.clear_completed_button.set_sensitive(False)
+        self.clear_completed_button.connect("clicked", self._on_clear_completed)
+        heading.append(self.clear_completed_button)
+
         self.list_box = Gtk.ListBox()
         self.list_box.set_selection_mode(Gtk.SelectionMode.NONE)
         self.list_box.add_css_class("boxed-list")
@@ -342,14 +345,31 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         scroller.set_child(self.list_box)
         content.append(scroller)
 
-        self.footer_label = Gtk.Label(
-            label=self._footer_text()
-        )
+        footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        footer.set_margin_top(6)
+        footer.set_margin_bottom(6)
+        footer.set_margin_start(self.content_margin)
+        footer.set_margin_end(self.content_margin)
+        self._footer_box = footer
+        self.footer_label = Gtk.Label(label=self._footer_text())
         self.footer_label.add_css_class("dim-label")
         self.footer_label.add_css_class("caption")
         self.footer_label.set_xalign(0)
-        content.append(self.footer_label)
+        self.footer_label.set_ellipsize(Pango.EllipsizeMode.END)
+        footer.append(self.footer_label)
+        view.add_bottom_bar(footer)
+
+        narrow = Adw.Breakpoint.new(Adw.BreakpointCondition.parse("max-width: 560px"))
+        narrow.add_setter(self, "content-margin", 8)
+        self.add_breakpoint(narrow)
         self._restore_queue()
+
+    def _on_content_margin_changed(self, *_args: object) -> None:
+        margin = self.content_margin
+        self._content_box.set_margin_start(margin)
+        self._content_box.set_margin_end(margin)
+        self._footer_box.set_margin_start(margin)
+        self._footer_box.set_margin_end(margin)
 
     def _run_palette_action(self, _button: Gtk.Button, action_name: str) -> None:
         self.command_palette.popdown()
@@ -417,72 +437,88 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             title="Download history", transient_for=self, modal=True
         )
         history_window.set_default_size(760, 520)
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        content.set_margin_top(18)
-        content.set_margin_bottom(18)
-        content.set_margin_start(20)
-        content.set_margin_end(20)
-        history_window.set_content(content)
+        view = Adw.ToolbarView()
+        history_window.set_content(view)
 
-        preferences = load_history_filter_preferences()
-        toolbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        search = Gtk.SearchEntry()
-        set_accessible_label(search, "Search download history")
-        search.set_hexpand(True)
-        search.set_placeholder_text("Search history by filename, URL, or destination")
-        search.set_text(preferences["query"])
-        toolbar.append(search)
-        status_filter = Gtk.DropDown.new_from_strings([
-            "All statuses", "Completed", "Failed", "Cancelled", "Paused"
-        ])
-        set_accessible_label(status_filter, "Filter history by outcome")
-        status_filter.set_tooltip_text("Filter history by outcome")
-        status_filter.set_selected(("All statuses", "Completed", "Failed", "Cancelled", "Paused").index(preferences["status"]))
-        toolbar.append(status_filter)
+        header = Adw.HeaderBar()
+        header.set_title_widget(Adw.WindowTitle(title="Download history", subtitle="Local records"))
         clear_button = Gtk.Button(label="Clear history")
         clear_button.add_css_class("destructive-action")
-        toolbar.append(clear_button)
-        content.append(toolbar)
+        header.pack_end(clear_button)
+        view.add_top_bar(header)
 
-        filter_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        file_type_filter = Gtk.DropDown.new_from_strings([
-            "All files", "Video", "Audio", "HLS/DASH", "Subtitles", "Other"
-        ])
+        preferences = load_history_filter_preferences()
+        search = Gtk.SearchEntry()
+        set_accessible_label(search, "Search download history")
+        search.set_placeholder_text("Search history by filename, URL, or destination")
+        search.set_text(preferences["query"])
+        search_bar = Gtk.SearchBar()
+        search_bar.connect_entry(search)
+        search_bar.set_search_mode(True)
+        search_bar.set_key_capture_widget(history_window)
+        view.add_top_bar(search_bar)
+
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        content.set_margin_top(12)
+        content.set_margin_bottom(12)
+        content.set_margin_start(12)
+        content.set_margin_end(12)
+        view.set_content(content)
+
+        filters = Adw.PreferencesGroup(
+            title="Filters", description="Narrow the history list by outcome, type, and source."
+        )
+        status_choices = ("All statuses", "Completed", "Failed", "Cancelled", "Paused")
+        status_filter = Adw.ComboRow(
+            title="Status", model=Gtk.StringList.new(list(status_choices))
+        )
+        set_accessible_label(status_filter, "Filter history by outcome")
+        status_filter.set_subtitle("Filter history by outcome")
+        status_filter.set_selected(status_choices.index(preferences["status"]))
+        filters.add(status_filter)
+
+        type_choices = ("All files", "Video", "Audio", "HLS/DASH", "Subtitles", "Other")
+        file_type_filter = Adw.ComboRow(
+            title="File type", model=Gtk.StringList.new(list(type_choices))
+        )
         set_accessible_label(file_type_filter, "Filter history by file type")
-        file_type_filter.set_hexpand(True)
-        file_type_filter.set_tooltip_text("Filter by file type")
-        file_type_filter.set_selected(("All files", "Video", "Audio", "HLS/DASH", "Subtitles", "Other").index(preferences["file_type"]))
-        filter_bar.append(file_type_filter)
-        date_filter = Gtk.DropDown.new_from_strings([
-            "Any time", "Last 24 hours", "Last 7 days", "Last 30 days"
-        ])
-        set_accessible_label(date_filter, "Filter history by date")
-        date_filter.set_hexpand(True)
-        date_filter.set_tooltip_text("Filter by date")
-        date_filter.set_selected(("Any time", "Last 24 hours", "Last 7 days", "Last 30 days").index(preferences["date_range"]))
-        filter_bar.append(date_filter)
-        category_filter = Gtk.DropDown.new_from_strings(["All categories", "Direct download", "HLS/DASH stream", "Uncategorized"])
-        set_accessible_label(category_filter, "Filter history by category")
-        category_filter.set_hexpand(True)
-        category_filter.set_tooltip_text("Filter by download category")
-        category_filter.set_selected(("All categories", "Direct download", "HLS/DASH stream", "Uncategorized").index(preferences["category"]))
-        filter_bar.append(category_filter)
-        size_filter = Gtk.DropDown.new_from_strings([
-            "Any size", "Unknown size", "Under 100 MB", "100 MB–1 GB", "Over 1 GB"
-        ])
-        set_accessible_label(size_filter, "Filter history by file size")
-        size_filter.set_hexpand(True)
-        size_filter.set_tooltip_text("Filter by file size")
-        size_filter.set_selected(("Any size", "Unknown size", "Under 100 MB", "100 MB–1 GB", "Over 1 GB").index(preferences["size_filter"]))
-        filter_bar.append(size_filter)
-        content.append(filter_bar)
+        file_type_filter.set_subtitle("Filter by file type")
+        file_type_filter.set_selected(type_choices.index(preferences["file_type"]))
+        filters.add(file_type_filter)
 
-        domain_filter = Gtk.Entry()
+        date_choices = ("Any time", "Last 24 hours", "Last 7 days", "Last 30 days")
+        date_filter = Adw.ComboRow(
+            title="Date added", model=Gtk.StringList.new(list(date_choices))
+        )
+        set_accessible_label(date_filter, "Filter history by date")
+        date_filter.set_subtitle("Filter by date")
+        date_filter.set_selected(date_choices.index(preferences["date_range"]))
+        filters.add(date_filter)
+
+        category_choices = ("All categories", "Direct download", "HLS/DASH stream", "Uncategorized")
+        category_filter = Adw.ComboRow(
+            title="Category", model=Gtk.StringList.new(list(category_choices))
+        )
+        set_accessible_label(category_filter, "Filter history by category")
+        category_filter.set_subtitle("Filter by download category")
+        category_filter.set_selected(category_choices.index(preferences["category"]))
+        filters.add(category_filter)
+
+        size_choices = ("Any size", "Unknown size", "Under 100 MB", "100 MB–1 GB", "Over 1 GB")
+        size_filter = Adw.ComboRow(
+            title="File size", model=Gtk.StringList.new(list(size_choices))
+        )
+        set_accessible_label(size_filter, "Filter history by file size")
+        size_filter.set_subtitle("Filter by file size")
+        size_filter.set_selected(size_choices.index(preferences["size_filter"]))
+        filters.add(size_filter)
+
+        domain_filter = Adw.EntryRow(title="Source domain")
         set_accessible_label(domain_filter, "Filter history by source domain")
-        domain_filter.set_placeholder_text("Filter by source domain (e.g. example.com)")
         domain_filter.set_input_purpose(Gtk.InputPurpose.FREE_FORM)
         domain_filter.set_text(preferences["domain"])
-        content.append(domain_filter)
+        filters.add(domain_filter)
+        content.append(filters)
 
         list_box = Gtk.ListBox()
         list_box.set_selection_mode(Gtk.SelectionMode.NONE)
@@ -501,10 +537,15 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 child = following
             rows.clear()
             history = list(reversed(load_history()))
-            if not history:
-                list_box.set_placeholder(Gtk.Label(label="No download history yet."))
-            else:
-                list_box.set_placeholder(Gtk.Label(label="No matching downloads."))
+            placeholder = Adw.StatusPage(
+                icon_name="view-list-symbolic",
+                title="No matching downloads" if history else "No download history yet",
+                description=(
+                    "Try changing the filters above."
+                    if history else "Completed downloads are recorded here automatically."
+                ),
+            )
+            list_box.set_placeholder(placeholder)
             for item in history:
                 subtitle = (
                     f'{item["outcome"]} · {item["timestamp"]} · '
@@ -620,71 +661,95 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             self.toast_overlay.add_toast(Adw.Toast.new(f"Could not open downloaded file: {exc}"))
 
     def _on_diagnostics_clicked(self, _button: Gtk.Button) -> None:
+        """Expose settings as an Adwaita preferences window with immediate saves."""
         settings = load_settings()
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        content.set_margin_top(6)
-        content.set_margin_bottom(6)
-        content.set_margin_start(6)
-        content.set_margin_end(6)
-        content.append(Gtk.Label(label="Logging verbosity", xalign=0))
-        level = Gtk.DropDown(model=Gtk.StringList.new(list(_DIAGNOSTIC_LEVELS)))
-        set_accessible_label(level, "Logging verbosity")
-        level.set_selected(_DIAGNOSTIC_LEVELS.index(settings["diagnostics_level"]))
-        content.append(level)
-        concurrency_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        concurrency_label = Gtk.Label(label="Maximum simultaneous downloads", xalign=0)
-        concurrency_label.set_hexpand(True)
-        concurrency = Gtk.SpinButton.new_with_range(1, 10, 1)
+        window = Adw.PreferencesWindow(
+            title="Settings and diagnostics", transient_for=self, modal=True
+        )
+        window.set_transient_for(self)
+        window.set_default_size(560, 560)
+        page = Adw.PreferencesPage()
+        window.set_content(page)
+
+        downloads = Adw.PreferencesGroup(
+            title="Downloads",
+            description="Changes are saved as soon as you make them.",
+        )
+        concurrency = Adw.SpinRow.new_with_range(1, 10, 1)
+        concurrency.set_title("Maximum simultaneous downloads")
         set_accessible_label(concurrency, "Maximum simultaneous downloads")
         concurrency.set_value(int(settings["max_concurrent_downloads"]))
-        concurrency_row.append(concurrency_label)
-        concurrency_row.append(concurrency)
-        content.append(concurrency_row)
-        notifications = Gtk.CheckButton(label="Enable desktop notifications")
+        downloads.add(concurrency)
+
+        notifications = Adw.SwitchRow(
+            title="Desktop notifications",
+            subtitle="Notify when a download finishes",
+        )
+        set_accessible_label(notifications, "Enable desktop notifications")
         notifications.set_active(bool(settings["notifications_enabled"]))
-        content.append(notifications)
-        forget_duplicate_choice = Gtk.Button(label="Forget remembered duplicate choice")
-        forget_duplicate_choice.add_css_class("flat")
+        downloads.add(notifications)
+
+        diagnostics = Adw.PreferencesGroup(
+            title="Diagnostics",
+            description=(
+                "URLs, credentials, tokens, and personal paths are redacted "
+                "before diagnostics are exported or copied."
+            ),
+        )
+        level = Adw.ComboRow(
+            title="Logging verbosity",
+            model=Gtk.StringList.new(list(_DIAGNOSTIC_LEVELS)),
+        )
+        set_accessible_label(level, "Logging verbosity")
+        level.set_selected(_DIAGNOSTIC_LEVELS.index(settings["diagnostics_level"]))
+        diagnostics.add(level)
+
+        def add_action_row(
+            group: Adw.PreferencesGroup,
+            title: str,
+            subtitle: str,
+            label: str,
+            handler: object,
+        ) -> None:
+            row = Adw.ActionRow(title=title, subtitle=subtitle)
+            button = Gtk.Button(label=label, valign=Gtk.Align.CENTER)
+            button.connect("clicked", handler)
+            row.add_suffix(button)
+            group.add(row)
 
         def forget_duplicate_preference(_button: Gtk.Button) -> None:
-            try:
-                clear_remembered_duplicate_action()
-            except OSError as exc:
-                self.toast_overlay.add_toast(Adw.Toast.new(f"Could not forget duplicate choice: {exc}"))
-                return
-            self.toast_overlay.add_toast(Adw.Toast.new("Remembered duplicate choice cleared."))
-        forget_duplicate_choice.connect("clicked", forget_duplicate_preference)
-        content.append(forget_duplicate_choice)
-        copy_button = Gtk.Button(label="Copy redacted diagnostics")
-        copy_button.add_css_class("flat")
-        copy_button.connect("clicked", self._on_copy_diagnostics)
-        content.append(copy_button)
-        settings_actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        export_button = Gtk.Button(label="Export settings…")
-        export_button.connect("clicked", self._on_export_settings)
-        import_button = Gtk.Button(label="Import settings…")
-        import_button.connect("clicked", self._on_import_settings)
-        restore_button = Gtk.Button(label="Restore previous backup")
-        restore_button.connect("clicked", self._on_restore_settings_backup)
-        settings_actions.append(export_button)
-        settings_actions.append(import_button)
-        settings_actions.append(restore_button)
-        content.append(settings_actions)
+            self.forget_duplicate_choice()
 
-        dialog = Adw.AlertDialog(
-            heading="Settings and diagnostics",
-            body="Choose how many downloads may run at once and how much diagnostic detail MediaGrab records. URLs, credentials, tokens, and personal paths are redacted before export.",
+        add_action_row(
+            diagnostics,
+            "Remembered duplicate choice",
+            "Clear the saved answer to future duplicate prompts",
+            "Forget",
+            forget_duplicate_preference,
         )
-        dialog.set_extra_child(content)
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("save", "Save")
-        dialog.set_default_response("save")
-        dialog.set_close_response("cancel")
-        dialog.set_response_appearance("save", Adw.ResponseAppearance.SUGGESTED)
+        add_action_row(
+            diagnostics,
+            "Diagnostic log",
+            "Copy the redacted log to the clipboard",
+            "Copy",
+            self._on_copy_diagnostics,
+        )
 
-        def on_response(_dialog: Adw.AlertDialog, response: str) -> None:
-            if response != "save":
-                return
+        backup = Adw.PreferencesGroup(
+            title="Backup", description="Export or restore local MediaGrab settings."
+        )
+        add_action_row(backup, "Export settings", "Save settings to a JSON file", "Export…", self._on_export_settings)
+        add_action_row(backup, "Import settings", "Load settings from a JSON file", "Import…", self._on_import_settings)
+        add_action_row(
+            backup, "Previous backup", "Restore the most recent settings backup",
+            "Restore", self._on_restore_settings_backup,
+        )
+
+        page.add(downloads)
+        page.add(diagnostics)
+        page.add(backup)
+
+        def save_current(*_args: object) -> None:
             selected = level.get_selected()
             if selected >= len(_DIAGNOSTIC_LEVELS):
                 return
@@ -702,11 +767,22 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 self.footer_label.set_text(self._footer_text())
                 self._start_next_downloads()
             except (OSError, ValueError) as exc:
-                self.toast_overlay.add_toast(Adw.Toast.new(f"Could not save diagnostics settings: {exc}"))
+                self.toast_overlay.add_toast(Adw.Toast.new(f"Could not save settings: {exc}"))
                 return
-            self.toast_overlay.add_toast(Adw.Toast.new(f"Diagnostics verbosity set to {diagnostics_level}."))
-        dialog.connect("response", on_response)
-        dialog.present(self)
+            self.toast_overlay.add_toast(Adw.Toast.new("Settings saved."))
+
+        level.connect("notify::selected", save_current)
+        concurrency.connect("notify::value", save_current)
+        notifications.connect("notify::active", save_current)
+        window.present()
+
+    def forget_duplicate_choice(self) -> None:
+        try:
+            clear_remembered_duplicate_action()
+        except OSError as exc:
+            self.toast_overlay.add_toast(Adw.Toast.new(f"Could not forget duplicate choice: {exc}"))
+            return
+        self.toast_overlay.add_toast(Adw.Toast.new("Remembered duplicate choice cleared."))
 
     def _choose_settings_file(self, *, save: bool) -> None:
         chooser = Gtk.FileChooserNative.new(
@@ -943,45 +1019,92 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         page.set_description("Add a direct file URL or an HLS/DASH manifest URL to start a download.")
         return page
 
+    def _present_form_dialog(
+        self,
+        title: str,
+        responses: list[tuple[str, str, str | None]],
+        content: Gtk.Widget,
+        on_response: object,
+        *,
+        width: int = 480,
+    ) -> None:
+        """Present a complex form as an Adw.Dialog with standard header actions."""
+        dialog = Adw.Dialog(title=title)
+        dialog.set_content_width(width)
+        view = Adw.ToolbarView()
+        header = Adw.HeaderBar()
+        header.set_show_start_title_buttons(False)
+        header.set_show_end_title_buttons(False)
+        for response_id, label, appearance in responses:
+            button = Gtk.Button(label=label, valign=Gtk.Align.CENTER)
+            if appearance == "suggested":
+                button.add_css_class("suggested-action")
+            elif appearance == "destructive":
+                button.add_css_class("destructive-action")
+            button.connect(
+                "clicked",
+                lambda _button, rid=response_id, d=dialog, cb=on_response: (cb(rid, d), d.close()),
+            )
+            if response_id == "cancel":
+                header.pack_start(button)
+            else:
+                header.pack_end(button)
+        view.add_top_bar(header)
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_vexpand(True)
+        scroller.set_child(content)
+        view.set_content(scroller)
+        dialog.set_child(view)
+        dialog.present(self)
+
     def _on_add_clicked(self, _button: Gtk.Button | None) -> None:
-        dialog = Adw.AlertDialog(
-            heading="Add a download",
-            body=f"Enter a direct file URL or an HLS/DASH manifest URL. The file will be saved in {self.download_directory}. HLS/DASH downloads require FFmpeg.",
+        group = Adw.PreferencesGroup(
+            description=(
+                f"Files are saved to {self.download_directory}. "
+                "HLS/DASH downloads require FFmpeg."
+            )
         )
-        entry = Gtk.Entry()
+        entry = Adw.EntryRow(title="Download URL")
         set_accessible_label(entry, "Download URL")
-        entry.set_placeholder_text("https://example.com/file.zip")
-        checksum_entry = Gtk.Entry()
-        set_accessible_label(checksum_entry, "Optional checksum")
-        checksum_entry.set_placeholder_text("Optional checksum: sha256:… / sha1:… / md5:…")
-        entry.set_hexpand(True)
-        paste_button = Gtk.Button(label="Paste")
+        paste_button = Gtk.Button(label="Paste", valign=Gtk.Align.CENTER)
         paste_button.set_tooltip_text("Read a URL from the clipboard")
         paste_button.add_css_class("flat")
         paste_button.connect("clicked", self._on_paste_clipboard, entry)
-        entry_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        entry_row.append(entry)
-        entry_row.append(paste_button)
-        dialog_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        dialog_content.append(entry_row)
-        dialog_content.append(checksum_entry)
-        dialog.set_extra_child(dialog_content)
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("inspect", "Inspect media…")
-        dialog.add_response("add", "Download")
-        dialog.set_default_response("add")
-        dialog.set_close_response("cancel")
-        dialog.set_response_appearance("add", Adw.ResponseAppearance.SUGGESTED)
-        dialog.connect("response", self._on_add_response, entry, checksum_entry)
-        dialog.present(self)
+        entry.add_suffix(paste_button)
+        group.add(entry)
 
-    def _on_paste_clipboard(self, _button: Gtk.Button, entry: Gtk.Entry) -> None:
+        checksum_entry = Adw.EntryRow(title="Optional checksum")
+        set_accessible_label(checksum_entry, "Optional checksum")
+        group.add(checksum_entry)
+
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        content.set_margin_top(12)
+        content.set_margin_bottom(12)
+        content.set_margin_start(12)
+        content.set_margin_end(12)
+        content.append(group)
+
+        def on_response(response: str, _dialog: Adw.Dialog) -> None:
+            self._on_add_response(response, entry, checksum_entry)
+
+        self._present_form_dialog(
+            "Add a download",
+            [
+                ("cancel", "Cancel", None),
+                ("inspect", "Inspect media…", None),
+                ("add", "Download", "suggested"),
+            ],
+            content,
+            on_response,
+        )
+
+    def _on_paste_clipboard(self, _button: Gtk.Button, entry: Adw.EntryRow) -> None:
         """Read clipboard text only after the user explicitly presses Paste."""
         clipboard = self.get_display().get_clipboard()
         clipboard.read_text_async(None, self._on_clipboard_text_read, entry)
 
     def _on_clipboard_text_read(
-        self, clipboard: object, result: object, entry: Gtk.Entry
+        self, clipboard: object, result: object, entry: Adw.EntryRow
     ) -> None:
         try:
             value = clipboard.read_text_finish(result)  # type: ignore[attr-defined]
@@ -999,8 +1122,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         self.toast_overlay.add_toast(Adw.Toast.new("URL pasted. Review it before adding the download."))
 
     def _on_add_response(
-        self, _dialog: Adw.AlertDialog, response: str, entry: Gtk.Entry,
-        checksum_entry: Gtk.Entry,
+        self, response: str, entry: Adw.EntryRow, checksum_entry: Adw.EntryRow,
     ) -> None:
         if response not in {"add", "inspect"}:
             return
@@ -1076,29 +1198,39 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                     choice_heights.append(representation.height)
                     choice_dash_stream_indices.append(representation.stream_index)
 
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        for side in ("top", "bottom", "start", "end"):
-            getattr(content, "set_margin_" + side)(6)
+        audio_choices = [item for item in result.renditions if item.kind == "audio" and item.url]
+        subtitle_choices = [item for item in result.renditions if item.kind == "subtitles" and item.url]
+
+        selection = Adw.PreferencesGroup(
+            title="Stream selection",
+            description="Choose a stream to add to the download queue.",
+        )
         if len(choices) > 1:
-            dropdown = Gtk.DropDown(model=Gtk.StringList.new([label for label, _url in choices]))
+            dropdown: Adw.ComboRow | None = Adw.ComboRow(
+                title="Download quality",
+                model=Gtk.StringList.new([label for label, _url in choices]),
+            )
             set_accessible_label(dropdown, "Download quality")
             dropdown.set_selected(preferred_quality_index(choice_heights, load_preferred_video_height()))
-            content.append(Gtk.Label(label="Download choice", xalign=0))
-            content.append(dropdown)
+            selection.add(dropdown)
         else:
             dropdown = None
-            content.append(Gtk.Label(label="No separate quality variants were declared. The original manifest will be queued.", wrap=True))
+            selection.add(Adw.ActionRow(
+                title="No separate quality variants were declared",
+                subtitle="The original manifest will be queued.",
+            ))
 
-        output_format_dropdown = Gtk.DropDown(
-            model=Gtk.StringList.new(["MKV (default)", "MP4"])
+        output_format_dropdown = Adw.ComboRow(
+            title="Output container",
+            subtitle="Applies to FFmpeg-backed manifest downloads",
+            model=Gtk.StringList.new(["MKV (default)", "MP4"]),
         )
         set_accessible_label(output_format_dropdown, "Video output container")
         output_format_dropdown.set_selected(0)
-        content.append(Gtk.Label(label="Output container", xalign=0))
-        content.append(output_format_dropdown)
-        content.append(Gtk.Label(
-            label="This applies to FFmpeg-backed manifest downloads. Direct media files keep their original format.",
-            xalign=0, wrap=True,
+        selection.add(output_format_dropdown)
+        selection.add(Adw.ActionRow(
+            title="Container note",
+            subtitle="Direct media files keep their original format.",
         ))
 
         def update_output_format_availability(*_args: object) -> None:
@@ -1117,6 +1249,25 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             dropdown.connect("notify::selected", update_output_format_availability)
         update_output_format_availability()
 
+        audio_dropdown: Adw.ComboRow | None = None
+        subtitle_dropdown: Adw.ComboRow | None = None
+        if audio_choices:
+            audio_labels = ["Use variant/default audio"] + [(item.name or item.language or "Audio track") + ((" · " + item.language) if item.language else "") + ((" · group " + item.group_id) if item.group_id else "") for item in audio_choices]
+            audio_dropdown = Adw.ComboRow(
+                title="Alternate audio",
+                model=Gtk.StringList.new(audio_labels),
+            )
+            set_accessible_label(audio_dropdown, "Alternate audio track")
+            selection.add(audio_dropdown)
+        if subtitle_choices:
+            subtitle_labels = ["No extra subtitles"] + [(item.name or item.language or "Subtitle track") + ((" · " + item.language) if item.language else "") + ((" · group " + item.group_id) if item.group_id else "") for item in subtitle_choices]
+            subtitle_dropdown = Adw.ComboRow(
+                title="Subtitles",
+                model=Gtk.StringList.new(subtitle_labels),
+            )
+            set_accessible_label(subtitle_dropdown, "Subtitle track")
+            selection.add(subtitle_dropdown)
+
         details = ["Type: " + result.kind.value.upper()]
         if result.kind is MediaKind.HLS:
             audio_count = sum(item.kind == "audio" for item in result.renditions)
@@ -1124,18 +1275,27 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             details.append("Declared alternate tracks: " + str(audio_count) + " audio, " + str(subtitle_count) + " subtitle")
         elif result.representations:
             details.append("DASH representations declared: " + str(len(result.representations)))
-        content.append(Gtk.Label(label="\n".join(details), xalign=0, wrap=True))
-        content.append(Gtk.Label(label="Manifest metadata is not a guarantee of availability. Alternate HLS audio/subtitle tracks may require the original manifest.", xalign=0, wrap=True))
+        metadata = Adw.PreferencesGroup(
+            title="Manifest metadata",
+            description="Declared information is not a guarantee of availability.",
+        )
+        for detail in details:
+            title, _, value = detail.partition(": ")
+            metadata.add(Adw.ActionRow(title=title, subtitle=value))
+        metadata.add(Adw.ActionRow(
+            title="Track compatibility",
+            subtitle="Alternate HLS tracks may require the original manifest.",
+        ))
 
-        dialog = Adw.AlertDialog(heading="Media choices", body="Choose a stream to add to the download queue.")
-        dialog.set_extra_child(content)
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("download", "Add to queue")
-        dialog.set_default_response("download")
-        dialog.set_close_response("cancel")
-        dialog.set_response_appearance("download", Adw.ResponseAppearance.SUGGESTED)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        content.set_margin_top(12)
+        content.set_margin_bottom(12)
+        content.set_margin_start(12)
+        content.set_margin_end(12)
+        content.append(selection)
+        content.append(metadata)
 
-        def response_cb(_dialog: Adw.AlertDialog, response: str) -> None:
+        def response_cb(response: str, _dialog: Adw.Dialog) -> None:
             if response == "download":
                 index = dropdown.get_selected() if dropdown is not None else 0
                 index = min(index, len(choices) - 1)
@@ -1178,24 +1338,16 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                             self.toast_overlay.add_toast(Adw.Toast.new("Download added, but the quality preference could not be saved."))
                     self.dismiss_candidate_by_url(original_url)
 
-        audio_choices = [item for item in result.renditions if item.kind == "audio" and item.url]
-        subtitle_choices = [item for item in result.renditions if item.kind == "subtitles" and item.url]
-        audio_dropdown = None
-        subtitle_dropdown = None
-        if audio_choices:
-            content.append(Gtk.Label(label="Alternate audio (optional)", xalign=0))
-            audio_labels = ["Use variant/default audio"] + [(item.name or item.language or "Audio track") + ((" · " + item.language) if item.language else "") + ((" · group " + item.group_id) if item.group_id else "") for item in audio_choices]
-            audio_dropdown = Gtk.DropDown(model=Gtk.StringList.new(audio_labels))
-            set_accessible_label(audio_dropdown, "Alternate audio track")
-            content.append(audio_dropdown)
-        if subtitle_choices:
-            content.append(Gtk.Label(label="Subtitles (optional)", xalign=0))
-            subtitle_labels = ["No extra subtitles"] + [(item.name or item.language or "Subtitle track") + ((" · " + item.language) if item.language else "") + ((" · group " + item.group_id) if item.group_id else "") for item in subtitle_choices]
-            subtitle_dropdown = Gtk.DropDown(model=Gtk.StringList.new(subtitle_labels))
-            set_accessible_label(subtitle_dropdown, "Subtitle track")
-            content.append(subtitle_dropdown)
-        dialog.connect("response", response_cb)
-        dialog.present(self)
+        self._present_form_dialog(
+            "Media choices",
+            [
+                ("cancel", "Cancel", None),
+                ("download", "Add to queue", "suggested"),
+            ],
+            content,
+            response_cb,
+            width=520,
+        )
         return GLib.SOURCE_REMOVE
 
     @staticmethod
@@ -1347,7 +1499,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                 )
                 return True
             self._show_completed_duplicate_dialog(
-                url, task, duplicates,
+                url, task, duplicates, file_duplicates=file_duplicates,
                 audio_url=audio_url,
                 subtitle_url=subtitle_url,
                 expected_checksum=expected_checksum,
@@ -1368,40 +1520,12 @@ class MediaGrabWindow(Adw.ApplicationWindow):
         task: DownloadTask | MediaStreamTask,
         duplicates: list[dict[str, object]],
         *,
+        file_duplicates: list[dict[str, object]],
         audio_url: str | None = None,
         subtitle_url: str | None = None,
         expected_checksum: str | None = None,
     ) -> None:
         """Ask before downloading when history points to an unchanged completed file."""
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        content.set_margin_top(6)
-        content.set_margin_bottom(6)
-        content.set_margin_start(6)
-        content.set_margin_end(6)
-        content.append(Gtk.Label(
-            label="This URL has a completed download in history, or a saved file has a matching name and size. These are possible duplicate signals, not proof that the media contents are identical.",
-            wrap=True,
-            xalign=0,
-        ))
-        remember_choice = Gtk.CheckButton(
-            label="Remember Keep both or Skip for future duplicate prompts"
-        )
-        content.append(remember_choice)
-        for entry in duplicates[:4]:
-            content.append(Gtk.Label(
-                label=str(Path(str(entry["destination"])) / str(entry["filename"])),
-                wrap=True,
-                xalign=0,
-                selectable=True,
-            ))
-        if len(duplicates) > 4:
-            content.append(Gtk.Label(label=f"And {len(duplicates) - 4} more matching history entries.", xalign=0))
-
-        dialog = Adw.AlertDialog(
-            heading="Possible duplicate download",
-            body="You can replace the existing file, keep both, skip this download, or cancel.",
-        )
-        dialog.set_extra_child(content)
         # Replacement is offered only for a file whose current size still
         # matches a completed-file history record. A URL-only history match
         # must never make an unrelated or changed path replaceable.
@@ -1415,17 +1539,42 @@ class MediaGrabWindow(Adw.ApplicationWindow):
             if replacement_target is not None else None
         )
 
-        dialog.add_response("cancel", "Cancel")
-        if replacement_target is not None and replacement_signature is not None:
-            dialog.add_response("replace", "Replace existing")
-            dialog.set_response_appearance("replace", Adw.ResponseAppearance.DESTRUCTIVE)
-        dialog.add_response("skip", "Skip download")
-        dialog.add_response("download", "Keep both (new filename)")
-        dialog.set_default_response("download")
-        dialog.set_close_response("cancel")
-        dialog.set_response_appearance("download", Adw.ResponseAppearance.SUGGESTED)
+        group = Adw.PreferencesGroup(
+            title="Possible duplicate download",
+            description=(
+                "A completed history record or a matching saved file was found. "
+                "These are signals, not proof that the media is identical."
+            ),
+        )
+        remember_choice = Adw.SwitchRow(
+            title="Remember this choice",
+            subtitle="Apply Keep both or Skip to future duplicate prompts",
+        )
+        group.add(remember_choice)
+        for entry in duplicates[:4]:
+            group.add(Adw.ActionRow(
+                title="Matching download",
+                subtitle=str(Path(str(entry["destination"])) / str(entry["filename"])),
+            ))
+        if len(duplicates) > 4:
+            group.add(Adw.ActionRow(
+                title=f"And {len(duplicates) - 4} more matching history entries"
+            ))
 
-        def response_cb(_dialog: Adw.AlertDialog, response: str) -> None:
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        content.set_margin_top(12)
+        content.set_margin_bottom(12)
+        content.set_margin_start(12)
+        content.set_margin_end(12)
+        content.append(group)
+
+        responses: list[tuple[str, str, str | None]] = [("cancel", "Cancel", None)]
+        if replacement_target is not None and replacement_signature is not None:
+            responses.append(("replace", "Replace existing", "destructive"))
+        responses.append(("skip", "Skip download", None))
+        responses.append(("download", "Keep both (new filename)", "suggested"))
+
+        def response_cb(response: str, _dialog: Adw.Dialog) -> None:
             if response == "download":
                 if remember_choice.get_active():
                     try:
@@ -1455,8 +1604,9 @@ class MediaGrabWindow(Adw.ApplicationWindow):
                         self.toast_overlay.add_toast(Adw.Toast.new(f"Could not remember this choice: {exc}"))
                 self.toast_overlay.add_toast(Adw.Toast.new("Duplicate download skipped."))
 
-        dialog.connect("response", response_cb)
-        dialog.present(self)
+        self._present_form_dialog(
+            "Possible duplicate download", responses, content, response_cb, width=520
+        )
 
     def _queue_new_download(
         self,
