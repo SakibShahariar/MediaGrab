@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from mediagrab.cli import parse_command
@@ -58,6 +60,13 @@ def test_help_text_documents_every_supported_operation() -> None:
 
 
 def test_command_line_output_uses_print_literal_with_real_newline() -> None:
+    source = (Path(__file__).resolve().parents[1] / "app" / "mediagrab" / "main.py").read_text(encoding="utf-8")
+    assert "command_line.print(" not in source
+    assert 'command_line.print_literal(f"{exc}\\n")' in source
+    assert 'command_line.print_literal(result + "\\n")' in source
+
+    # The behavioral part needs PyGObject, which CI's plain Python jobs lack.
+    pytest.importorskip("gi")
     from mediagrab.main import MediaGrabApplication
 
     class FakeApp:
