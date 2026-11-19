@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <rect x="1.75" y="1.75" width="12.5" height="8.5" rx="1.75" fill="none" stroke="#bebebe" stroke-width="1.5"/>
+  <path fill="#bebebe" d="M6.4 3.8 10.6 6 6.4 8.2z"/>
+  <path fill="none" stroke="#bebebe" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M8 10.4v3.4M6.4 12.2 8 13.8l1.6-1.6"/>
+</svg>

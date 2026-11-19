@@ -39,6 +39,16 @@ def test_rpm_spec_packages_every_console_entrypoint_and_native_host_installer() 
     assert (ROOT / "scripts/install_native_host.py").is_file()
 
 
+def test_rpm_spec_packages_all_icon_variants() -> None:
+    spec = (ROOT / "packaging/rpm/mediagrab.spec").read_text(encoding="utf-8")
+    for icon in (
+        "%{_datadir}/icons/hicolor/scalable/apps/io.github.SakibShahariar.MediaGrab.svg",
+        "%{_datadir}/icons/hicolor/scalable/apps/io.github.SakibShahariar.MediaGrab-mono.svg",
+        "%{_datadir}/icons/hicolor/symbolic/apps/io.github.SakibShahariar.MediaGrab-symbolic.svg",
+    ):
+        assert icon in spec
+
+
 def test_rpm_source_archive_name_matches_fedora_workflow_and_docs() -> None:
     version = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
     spec = (ROOT / "packaging/rpm/mediagrab.spec").read_text(encoding="utf-8")

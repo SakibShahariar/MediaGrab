@@ -1014,7 +1014,7 @@ class MediaGrabWindow(Adw.ApplicationWindow):
 
     def _make_empty_state(self) -> Gtk.Widget:
         page = Adw.StatusPage()
-        page.set_icon_name("folder-download-symbolic")
+        page.set_icon_name(APP_ID + "-symbolic")
         page.set_title("Nothing queued")
         page.set_description("Add a direct file URL or an HLS/DASH manifest URL to start a download.")
         return page

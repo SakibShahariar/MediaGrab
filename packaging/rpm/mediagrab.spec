@@ -41,6 +41,10 @@ install -Dpm 0644 data/io.github.SakibShahariar.MediaGrab.desktop \
     %{buildroot}%{_datadir}/applications/io.github.SakibShahariar.MediaGrab.desktop
 install -Dpm 0644 data/icons/hicolor/scalable/apps/io.github.SakibShahariar.MediaGrab.svg \
     %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/io.github.SakibShahariar.MediaGrab.svg
+install -Dpm 0644 data/icons/hicolor/scalable/apps/io.github.SakibShahariar.MediaGrab-mono.svg \
+    %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/io.github.SakibShahariar.MediaGrab-mono.svg
+install -Dpm 0644 data/icons/hicolor/symbolic/apps/io.github.SakibShahariar.MediaGrab-symbolic.svg \
+    %{buildroot}%{_datadir}/icons/hicolor/symbolic/apps/io.github.SakibShahariar.MediaGrab-symbolic.svg
 install -Dpm 0644 data/io.github.SakibShahariar.MediaGrab.metainfo.xml \
     %{buildroot}%{_datadir}/metainfo/io.github.SakibShahariar.MediaGrab.metainfo.xml
 install -Dpm 0644 scripts/install_native_host.py \
@@ -59,5 +63,7 @@ PYTHONPATH=app python3 -m pytest -q
 %doc README.md docs/fedora-packaging.md
 %{_datadir}/applications/io.github.SakibShahariar.MediaGrab.desktop
 %{_datadir}/icons/hicolor/scalable/apps/io.github.SakibShahariar.MediaGrab.svg
+%{_datadir}/icons/hicolor/scalable/apps/io.github.SakibShahariar.MediaGrab-mono.svg
+%{_datadir}/icons/hicolor/symbolic/apps/io.github.SakibShahariar.MediaGrab-symbolic.svg
 %{_datadir}/metainfo/io.github.SakibShahariar.MediaGrab.metainfo.xml
 %{_datadir}/mediagrab/install_native_host.py
