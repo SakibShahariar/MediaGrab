@@ -7,10 +7,12 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import shutil
 import subprocess
+import time
 from threading import Thread
 
 import pytest
 
+from mediagrab.downloader import DownloadError
 from mediagrab.media_stream import MediaStreamTask
 
 
@@ -77,8 +79,6 @@ def test_real_ffmpeg_downloads_hls_segments_and_finalizes_output(tmp_path: Path)
 
 @pytest.mark.skipif(FFMPEG is None, reason="FFmpeg is not installed")
 def test_aes128_hls_decryption_and_missing_key_failure(tmp_path: Path) -> None:
-    from mediagrab.downloader import DownloadError
-
     source_dir = tmp_path / "encrypted-source"
     destination = tmp_path / "encrypted-downloads"
     source_dir.mkdir()
@@ -141,7 +141,8 @@ def test_aes128_hls_decryption_and_missing_key_failure(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(FFMPEG is None, reason="FFmpeg is not installed")
-def test_hls_event_playlist_without_endlist(tmp_path: Path) -> None:
+def test_hls_event_playlist_without_endlist_can_be_cancelled(tmp_path: Path) -> None:
+    """A live-style playlist without ENDLIST does not finish on its own; cancel it."""
     source_dir = tmp_path / "event-source"
     destination = tmp_path / "event-downloads"
     source_dir.mkdir()
@@ -152,7 +153,7 @@ def test_hls_event_playlist_without_endlist(tmp_path: Path) -> None:
             FFMPEG, "-hide_banner", "-loglevel", "error",
             "-f", "lavfi", "-i", "testsrc=size=160x90:rate=10",
             "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100",
-            "-t", "2", "-c:v", "mpeg2video", "-c:a", "mp2",
+            "-t", "12", "-c:v", "mpeg2video", "-c:a", "mp2",
             "-f", "hls", "-hls_time", "1", "-hls_list_size", "0",
             "-hls_segment_filename", str(source_dir / "segment%02d.ts"),
             str(playlist),
@@ -168,23 +169,50 @@ def test_hls_event_playlist_without_endlist(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
+    class SlowHandler(_QuietHandler):
+        def do_GET(self) -> None:  # type: ignore[override]
+            if self.path.endswith(".ts"):
+                time.sleep(0.4)
+            super().do_GET()
+
     server = ThreadingHTTPServer(
         ("127.0.0.1", 0),
-        partial(_QuietHandler, directory=str(source_dir)),
+        partial(SlowHandler, directory=str(source_dir)),
     )
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
+    task = MediaStreamTask(
+        f"http://127.0.0.1:{server.server_port}/event.m3u8",
+        destination,
+        ffmpeg_path=FFMPEG,
+    )
+    errors: list[DownloadError] = []
+
+    def run_task() -> None:
+        try:
+            task.run()
+        except DownloadError as exc:
+            errors.append(exc)
+
+    worker = Thread(target=run_task, daemon=True)
+    worker.start()
     try:
-        task = MediaStreamTask(
-            f"http://127.0.0.1:{server.server_port}/event.m3u8",
-            destination,
-            ffmpeg_path=FFMPEG,
-        )
-        output = task.run()
-        assert task.state == "completed"
-        assert output.is_file() and output.stat().st_size > 0
+        deadline = time.monotonic() + 10
+        while task.state == "queued" and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert task.state == "downloading"
+        time.sleep(0.6)
+        task.cancel()
+        worker.join(timeout=15)
+        assert not worker.is_alive()
+        assert errors
+        assert task.state == "cancelled"
         assert not list(destination.glob("*.mediagrab-part.*"))
+        assert not list(destination.glob("*.mkv"))
     finally:
+        if worker.is_alive():
+            task.cancel()
+            worker.join(timeout=15)
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)

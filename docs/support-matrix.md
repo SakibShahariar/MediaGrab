@@ -39,7 +39,7 @@ The current suite is site-independent and uses fixtures, local HTTP servers, and
 
 - `tests/test_capture.py`: URL/MIME classification, synthetic HLS variants and renditions, DASH representation metadata, malformed manifests, and credential rejection.
 - `tests/test_hls_real_world_fixtures.py`: parser regression checks against Apache-2.0-licensed real-world master playlists with multiple variants, external audio, and subtitles; fixture provenance is recorded in `tests/fixtures/hls/README.md`.
-- `tests/test_media_stream_integration.py`: optional local HTTP HLS segment download, remux, finalization, and decode verification.
+- `tests/test_media_stream_integration.py`: optional local HTTP HLS segment download, remux, finalization, decode verification, and cancellation of an event playlist without an end marker.
 - `tests/test_hls_aes_integration.py`: optional real-FFmpeg AES-128 decryption and output decode verification.
 - `tests/test_media_stream.py`: cancellation-state preservation and failure cleanup.
 - `tests/test_media_inspector.py`: local-server manifest fetches, response-size and timeout limits, HTTP errors, and redirect validation.
@@ -51,7 +51,7 @@ The current suite is site-independent and uses fixtures, local HTTP servers, and
 - `tests/test_native_host.py` and `tests/test_browser_popup.py`: native-messaging validation and static browser-extension contracts.
 - `tests/browser-extension-background.test.cjs`: Node-based Firefox/Chromium background API harness covering response classification, per-tab deduplication, navigation cleanup, permission revocation, and context-menu handoff.
 
-These tests establish core behavior in controlled environments. Real-world HLS master-playlist metadata is covered by retained upstream fixtures; FFmpeg end-to-end tests use generated local VOD and AES-128 sources rather than third-party segment origins. This does not establish compatibility with every site, DRM scheme, or authenticated stream. Browser/GTK end-to-end testing remains outstanding. See the remaining validation work for [real-world HLS sources](https://github.com/SakibShahariar/MediaGrab/issues/3) and [browser handoff testing](https://github.com/SakibShahariar/MediaGrab/issues/14).
+These tests establish core behavior in controlled environments. Real-world HLS master-playlist metadata is covered by retained upstream fixtures; FFmpeg end-to-end tests use generated local VOD, AES-128, and event-playlist fixtures rather than third-party segment origins. This does not establish compatibility with every site, DRM scheme, or authenticated stream. Browser/GTK end-to-end testing remains outstanding. See the remaining validation work for [real-world HLS sources](https://github.com/SakibShahariar/MediaGrab/issues/3) and [browser handoff testing](https://github.com/SakibShahariar/MediaGrab/issues/14).
 
 
 ## Diagnostics
